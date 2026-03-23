@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { formatDate, formatCurrency, normalizePhone } from '@/lib/utils'
+import { formatDate, formatCurrency, normalizePhone, formatPhone } from '@/lib/utils'
 import { ArrowLeft, Edit, MessageSquare, Phone, Mail, MapPin, FileText, Stethoscope } from 'lucide-react'
 
 async function getClient(id: string) {
@@ -19,8 +19,9 @@ async function getClient(id: string) {
   return { client, treatments: treatments || [] }
 }
 
-export default async function ClienteDetailPage({ params }: { params: { id: string } }) {
-  const { client, treatments } = await getClient(params.id)
+export default async function ClienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const { client, treatments } = await getClient(id)
   if (!client) notFound()
 
   const totalGasto = treatments.reduce((s, t) => s + (t.price || 0), 0)
@@ -49,7 +50,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
               <MessageSquare size={13} /> Conversa
             </Link>
           )}
-          <Link href={`/clientes/${client.id}/editar`} className="btn-primary" style={{ fontSize:'13px', padding:'0.4rem 0.875rem' }}>
+          <Link href={`/clientes/${id}/editar`} className="btn-primary" style={{ fontSize:'13px', padding:'0.4rem 0.875rem' }}>
             <Edit size={13} /> Editar
           </Link>
         </div>
@@ -62,7 +63,7 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
             <div style={{ fontSize:'11px', letterSpacing:'0.06em', textTransform:'uppercase', color:'var(--text-muted)', marginBottom:'1rem' }}>Informações</div>
             {[
               { icon: Mail, label: client.email || '—' },
-              { icon: Phone, label: client.phone ? normalizePhone(client.phone) : '—' },
+              { icon: Phone, label: client.phone ? formatPhone(client.phone) : '—' },
               { icon: MapPin, label: client.address || '—' },
             ].map(({ icon: Icon, label }) => (
               <div key={label} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'0.5rem 0', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
