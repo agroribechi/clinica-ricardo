@@ -25,10 +25,12 @@ export default function LeadsPage() {
   // Filtra leads pelo termo de busca (nome ou telefone)
   const searchTerm = search.trim().toLowerCase()
   const filteredLeads = searchTerm
-    ? leads.filter(l =>
-        l.name.toLowerCase().includes(searchTerm) ||
-        (l.phone || '').replace(/\D/g, '').includes(searchTerm.replace(/\D/g, ''))
-      )
+    ? leads.filter(l => {
+        if (l.name.toLowerCase().includes(searchTerm)) return true
+        const digits = searchTerm.replace(/\D/g, '')
+        if (digits) return (l.phone || '').replace(/\D/g, '').includes(digits)
+        return false
+      })
     : leads
 
   async function handleRenameStage(stage: { id: string; name: string }) {
