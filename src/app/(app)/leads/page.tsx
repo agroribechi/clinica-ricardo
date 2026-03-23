@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import type { Lead, LeadStage } from '@/types/database'
-import { Plus, ChevronLeft, ChevronRight, Settings, X, Loader2, Trash2 } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Settings, X, Loader2, Trash2, Search } from 'lucide-react'
 
 const STAGE_COLORS = ['#888','#3b82f6','#f59e0b','#8b5cf6','#10b981','#ef4444','#ec4899','#06b6d4']
 
@@ -20,6 +20,16 @@ export default function LeadsPage() {
   const [saving, setSaving] = useState(false)
   const [moving, setMoving] = useState<string | null>(null)
   const [editingStage, setEditingStage] = useState<{ id: string; name: string } | null>(null)
+  const [search, setSearch] = useState('')
+
+  // Filtra leads pelo termo de busca (nome ou telefone)
+  const searchTerm = search.trim().toLowerCase()
+  const filteredLeads = searchTerm
+    ? leads.filter(l =>
+        l.name.toLowerCase().includes(searchTerm) ||
+        (l.phone || '').replace(/\D/g, '').includes(searchTerm.replace(/\D/g, ''))
+      )
+    : leads
 
   async function handleRenameStage(stage: { id: string; name: string }) {
     const trimmed = stage.name.trim()
@@ -109,7 +119,7 @@ export default function LeadsPage() {
     load()
   }
 
-  const stageLeads = (stageName: string) => leads.filter(l => l.status === stageName)
+  const stageLeads = (stageName: string) => filteredLeads.filter(l => l.status === stageName)
   const stageIdx = (stageName: string) => stages.findIndex(s => s.name === stageName)
 
   if (loading) return (
@@ -127,7 +137,30 @@ export default function LeadsPage() {
           <h1 style={{ fontFamily:'Cormorant Garamond, serif', fontSize:'2.2rem', fontWeight:300, color:'#f5f0e8' }}>Funil de Vendas</h1>
           <div style={{ height:'1px', marginTop:'0.5rem', width:'120px', background:'linear-gradient(90deg, rgba(201,147,24,0.4), transparent)' }} />
         </div>
-        <div style={{ display:'flex', gap:'0.5rem' }}>
+        <div style={{ display:'flex', gap:'0.5rem', alignItems:'center' }}>
+          {/* Campo de busca */}
+          <div style={{ position:'relative', display:'flex', alignItems:'center' }}>
+            <Search size={13} style={{ position:'absolute', left:'9px', color:'#666', pointerEvents:'none' }} />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar por nome ou telefone..."
+              style={{ paddingLeft:'30px', paddingRight: search ? '28px' : '10px', paddingTop:'6px', paddingBottom:'6px', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'7px', color:'#d0c8bc', fontSize:'12px', width:'220px', outline:'none', fontFamily:'var(--font-body)' }}
+              onFocus={e => (e.currentTarget.style.borderColor = 'rgba(201,147,24,0.35)')}
+              onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)')}
+            />
+            {search && (
+              <button onClick={() => setSearch('')} style={{ position:'absolute', right:'7px', background:'none', border:'none', color:'#666', cursor:'pointer', padding:0, display:'flex', alignItems:'center' }}>
+                <X size={11} />
+              </button>
+            )}
+          </div>
+          {searchTerm && (
+            <span style={{ fontSize:'11px', color:'#888', whiteSpace:'nowrap' }}>
+              {filteredLeads.length} resultado{filteredLeads.length !== 1 ? 's' : ''}
+            </span>
+          )}
           <button onClick={() => setShowStageForm(true)} className="btn-ghost" style={{ fontSize:'12px', gap:'5px' }}>
             <Settings size={13} />Nova Etapa
           </button>
