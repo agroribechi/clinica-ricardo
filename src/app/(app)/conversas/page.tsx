@@ -2,9 +2,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { normalizePhone, phonesMatch, formatDate, formatCurrency } from '@/lib/utils'
+import { normalizePhone, phonesMatch, formatDate, formatCurrency, formatWhatsAppLink } from '@/lib/utils'
 import type { WhatsAppMessage, Client, Lead, LeadStage, Conversation } from '@/types/database'
-import { MessageSquare, Trash2, UserPlus, Users, Filter, ExternalLink, Loader2, X } from 'lucide-react'
+import { MessageSquare, Trash2, UserPlus, Users, Filter, ExternalLink, Loader2, X, Phone } from 'lucide-react'
 import { Suspense } from 'react'
 
 // ─── Painel de ações do contato ───────────────────────────────────────────────
@@ -190,6 +190,17 @@ function ContactPanel({
 
             {/* Ações extras */}
             <div style={{ marginTop:'0.5rem', display:'flex', flexDirection:'column', gap:'4px' }}>
+              {/* Botão WhatsApp — abre app ou WhatsApp Web direto na conversa */}
+              {conv.phone && (
+                <a
+                  href={formatWhatsAppLink(conv.phone)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ padding:'7px 12px', borderRadius:'7px', background:'rgba(37,211,102,0.08)', border:'1px solid rgba(37,211,102,0.2)', color:'#25d366', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', gap:'7px', textDecoration:'none' }}
+                >
+                  <Phone size={13} />Abrir no WhatsApp
+                </a>
+              )}
               {!client && (
                 <button onClick={() => setTab('add-cliente')} style={{ padding:'7px 12px', borderRadius:'7px', background:'rgba(52,211,153,0.05)', border:'1px solid rgba(52,211,153,0.12)', color:'#34d399', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', gap:'7px', textAlign:'left' }}>
                   <Users size={13} />Adicionar como cliente
@@ -529,6 +540,18 @@ function ConversasContent() {
               })()}
             </div>
             <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
+              {/* Botão WhatsApp no header — abre app ou WhatsApp Web direto na conversa */}
+              {selected.phone && (
+                <a
+                  href={formatWhatsAppLink(selected.phone)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Abrir no WhatsApp"
+                  style={{ padding:'6px 12px', borderRadius:'6px', border:'1px solid rgba(37,211,102,0.25)', background:'rgba(37,211,102,0.08)', color:'#25d366', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', gap:'5px', textDecoration:'none' }}
+                >
+                  <Phone size={12} />WhatsApp
+                </a>
+              )}
               <button onClick={() => setShowPanel(p => !p)}
                 style={{ padding:'6px 12px', borderRadius:'6px', border:'1px solid rgba(201,147,24,0.2)', background: showPanel ? 'rgba(201,147,24,0.12)' : 'transparent', color:'var(--gold)', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', gap:'5px' }}>
                 <UserPlus size={12} />{showPanel ? 'Fechar' : 'Ações'}

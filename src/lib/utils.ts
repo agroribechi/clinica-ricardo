@@ -29,6 +29,14 @@ export function normalizePhone(phone?: string | null): string {
   return phone.split('@')[0].replace(/\D/g, '')
 }
 
+export function formatWhatsAppLink(phone?: string | null): string {
+  const digits = normalizePhone(phone)
+  if (!digits) return ''
+  // Garante DDI 55 (Brasil) se o número tiver ≤ 11 dígitos
+  const withDDI = digits.startsWith('55') && digits.length >= 12 ? digits : `55${digits}`
+  return `https://wa.me/${withDDI}`
+}
+
 export function formatPhone(phone?: string | null): string {
   const digits = normalizePhone(phone)
   if (!digits) return ''
