@@ -100,13 +100,13 @@ export default function ImportarPage() {
       if (type === 'clientes') {
         const records = batch.map(mapCliente).filter(r => r.display_name)
         if (!records.length) continue
-        const { error } = await supabase.from('clients').insert(records)
+        const { error } = await supabase.from('clients').insert(records as any)
         if (error) errors.push(`Linhas ${i+1}-${i+batch.length}: ${error.message}`)
         else success += records.length
       } else {
         const records = batch.map(mapLead).filter(r => r.name)
         if (!records.length) continue
-        const { error } = await supabase.from('leads').insert(records)
+        const { error } = await supabase.from('leads').insert(records as any)
         if (error) errors.push(`Linhas ${i+1}-${i+batch.length}: ${error.message}`)
         else success += records.length
       }
