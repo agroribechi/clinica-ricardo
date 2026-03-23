@@ -7,43 +7,64 @@ import Link from 'next/link'
 type Row = Record<string, string>
 type ImportResult = { success: number; errors: string[] }
 
-function mapCliente(row: Row) {
-  const get = (...keys: string[]) => {
-    for (const k of keys) {
-      const found = Object.keys(row).find(rk => rk.toLowerCase().trim() === k.toLowerCase())
-      if (found && row[found]?.trim()) return row[found].trim()
-    }
-    return null
+function parseCSV(text: string): Row[] {
+  const lines = text.split(/\r?\n/).filter(l => l.trim())
+  if (lines.length < 2) return []
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim())
+  return lines.slice(1).map(line => {
+    const values = line.split(',').map(v => v.replace(/^"|"$/g, '').trim())
+    const row: Row = {}
+    headers.forEach((h, i) => { row[h] = values[i] || '' })
+    return row
+  })
+}
+
+function get(row: Row, ...keys: string[]): string | null {
+  for (const k of keys) {
+    const found = Object.keys(row).find(rk => rk.toLowerCase().trim() === k.toLowerCase())
+    if (found && row[found]?.trim()) return row[found].trim()
   }
+  return null
+}
+
+function mapCliente(row: Row) {
   return {
-    display_name: get('nome', 'name', 'display_name', 'cliente', 'nome completo') || '',
-    email:        get('email', 'e-mail') || null,
-    phone:        get('telefone', 'phone', 'fone', 'celular', 'whatsapp') || null,
-    cpf:          get('cpf') || null,
-    dob:          get('nascimento', 'dob', 'data de nascimento', 'data nascimento') || null,
-    address:      get('endereco', 'endereço', 'address') || null,
-    notes:        get('observacoes', 'observações', 'notes', 'obs') || null,
+    display_name: get(row,'nome','name','display_name','cliente','nome completo') || '',
+    email:        get(row,'email','e-mail') || null,
+    phone:        get(row,'telefone','phone','fone','celular','whatsapp') || null,
+    cpf:          get(row,'cpf') || null,
+    dob:          get(row,'nascimento','dob','data de nascimento') || null,
+    address:      get(row,'endereco','endereço','address') || null,
+    notes:        get(row,'observacoes','observações','notes','obs') || null,
   }
 }
 
 function mapLead(row: Row) {
-  const get = (...keys: string[]) => {
-    for (const k of keys) {
-      const found = Object.keys(row).find(rk => rk.toLowerCase().trim() === k.toLowerCase())
-      if (found && row[found]?.trim()) return row[found].trim()
-    }
-    return null
-  }
   return {
-    name:            get('nome', 'name', 'lead', 'nome completo') || '',
-    email:           get('email', 'e-mail') || null,
-    phone:           get('telefone', 'phone', 'celular', 'whatsapp') || null,
-    source:          get('origem', 'source', 'canal') || 'Importação',
-    status:          get('status', 'etapa', 'stage') || 'Novo Lead',
-    owner:           get('responsavel', 'responsável', 'owner') || 'Não atribuído',
-    potential_value: parseFloat(get('valor', 'value', 'potential_value', 'valor potencial') || '0') || 0,
-    notes:           get('observacoes', 'observações', 'notes', 'obs') || null,
+    name:            get(row,'nome','name','lead','nome completo') || '',
+    email:           get(row,'email','e-mail') || null,
+    phone:           get(row,'telefone','phone','celular','whatsapp') || null,
+    source:          get(row,'origem','source','canal') || 'Importação',
+    status:          get(row,'status','etapa','stage') || 'Novo Lead',
+    owner:           get(row,'responsavel','responsável','owner') || 'Não atribuído',
+    potential_value: parseFloat(get(row,'valor','value','potential_value') || '0') || 0,
+    notes:           get(row,'observacoes','observações','notes','obs') || null,
   }
+}
+
+function downloadCSV(type: 'clientes' | 'leads') {
+  const headers = type === 'clientes'
+    ? 'Nome,Email,Telefone,CPF,Nascimento,Endereço,Observações'
+    : 'Nome,Email,Telefone,Origem,Status,Valor Potencial,Observações'
+  const example = type === 'clientes'
+    ? 'Maria da Silva,maria@email.com,44999990000,000.000.000-00,1990-05-15,Rua das Flores 123,Cliente VIP'
+    : 'Ana Lima,ana@email.com,44988880000,WhatsApp,Novo Lead,500,Interesse em botox'
+  const csv = `${headers}\n${example}`
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `modelo_${type}.csv`
+  a.click()
 }
 
 export default function ImportarPage() {
@@ -51,6 +72,7 @@ export default function ImportarPage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [type, setType] = useState<'clientes' | 'leads'>('clientes')
   const [preview, setPreview] = useState<Row[]>([])
+  const [allRows, setAllRows] = useState<Row[]>([])
   const [fileName, setFileName] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
@@ -61,29 +83,20 @@ export default function ImportarPage() {
     if (!file) return
     setFileName(file.name)
     setResult(null)
-    const XLSX = await import('xlsx')
-    const buf = await file.arrayBuffer()
-    const wb = XLSX.read(buf, { type: 'array' })
-    const ws = wb.Sheets[wb.SheetNames[0]]
-    const rows: Row[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
+    const text = await file.text()
+    const rows = parseCSV(text)
+    setAllRows(rows)
     setPreview(rows.slice(0, 5))
     setStep('preview')
   }
 
   async function handleImport() {
-    const file = fileRef.current?.files?.[0]
-    if (!file) return
     setLoading(true)
-    const XLSX = await import('xlsx')
-    const buf = await file.arrayBuffer()
-    const wb = XLSX.read(buf, { type: 'array' })
-    const ws = wb.Sheets[wb.SheetNames[0]]
-    const rows: Row[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
     let success = 0
     const errors: string[] = []
     const BATCH = 50
-    for (let i = 0; i < rows.length; i += BATCH) {
-      const batch = rows.slice(i, i + BATCH)
+    for (let i = 0; i < allRows.length; i += BATCH) {
+      const batch = allRows.slice(i, i + BATCH)
       if (type === 'clientes') {
         const records = batch.map(mapCliente).filter(r => r.display_name)
         if (!records.length) continue
@@ -103,24 +116,8 @@ export default function ImportarPage() {
     setStep('done')
   }
 
-  function downloadTemplate() {
-    const run = async () => {
-      const XLSX = await import('xlsx')
-      const cols = type === 'clientes'
-        ? [['Nome','Email','Telefone','CPF','Nascimento','Endereço','Observações'],
-           ['Maria da Silva','maria@email.com','44999990000','000.000.000-00','1990-05-15','Rua das Flores, 123','Cliente VIP']]
-        : [['Nome','Email','Telefone','Origem','Status','Valor Potencial','Observações'],
-           ['Ana Lima','ana@email.com','44988880000','WhatsApp','Novo Lead','500','Interesse em botox']]
-      const ws = XLSX.utils.aoa_to_sheet(cols)
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, type === 'clientes' ? 'Clientes' : 'Leads')
-      XLSX.writeFile(wb, `modelo_${type}.xlsx`)
-    }
-    run()
-  }
-
   function reset() {
-    setStep('upload'); setPreview([]); setFileName(''); setResult(null)
+    setStep('upload'); setPreview([]); setAllRows([]); setFileName(''); setResult(null)
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -132,7 +129,7 @@ export default function ImportarPage() {
         <h1 style={{ fontFamily:'Cormorant Garamond, serif', fontSize:'2.2rem', fontWeight:300, color:'#f0ebe0' }}>Importar Dados</h1>
         <div style={{ height:'1px', marginTop:'0.5rem', width:'120px', background:'linear-gradient(90deg, rgba(201,147,24,0.4), transparent)' }} />
         <p style={{ marginTop:'0.75rem', fontSize:'13px', color:'#9a9080', maxWidth:'480px' }}>
-          Importe clientes ou leads a partir de uma planilha Excel (.xlsx) ou CSV.
+          Importe clientes ou leads a partir de um arquivo CSV.
         </p>
       </div>
 
@@ -143,8 +140,8 @@ export default function ImportarPage() {
             {t === 'clientes' ? 'Clientes' : 'Leads'}
           </button>
         ))}
-        <button onClick={downloadTemplate} className="btn-ghost" style={{ marginLeft:'auto', fontSize:'12px', gap:'6px' }}>
-          <Download size={13} />Baixar modelo {type}
+        <button onClick={() => downloadCSV(type)} className="btn-ghost" style={{ marginLeft:'auto', fontSize:'12px', gap:'6px' }}>
+          <Download size={13} />Baixar modelo CSV
         </button>
       </div>
 
@@ -157,10 +154,10 @@ export default function ImportarPage() {
               <FileSpreadsheet size={24} style={{ color:'var(--gold)' }} />
             </div>
             <div style={{ textAlign:'center' }}>
-              <div style={{ fontSize:'14px', fontWeight:500, color:'#f0ebe0', marginBottom:'4px' }}>Clique para selecionar a planilha</div>
-              <div style={{ fontSize:'12px', color:'#7a7060' }}>Excel (.xlsx) ou CSV</div>
+              <div style={{ fontSize:'14px', fontWeight:500, color:'#f0ebe0', marginBottom:'4px' }}>Clique para selecionar o arquivo</div>
+              <div style={{ fontSize:'12px', color:'#7a7060' }}>CSV (.csv) — máx. 10.000 linhas</div>
             </div>
-            <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} style={{ display:'none' }} />
+            <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} style={{ display:'none' }} />
           </label>
         </div>
       )}
@@ -171,7 +168,7 @@ export default function ImportarPage() {
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.75rem' }}>
               <div>
                 <div style={{ fontSize:'13px', fontWeight:500, color:'#f0ebe0' }}>{fileName}</div>
-                <div style={{ fontSize:'12px', color:'#9a9080', marginTop:'2px' }}>Prévia das primeiras 5 linhas</div>
+                <div style={{ fontSize:'12px', color:'#9a9080', marginTop:'2px' }}>{allRows.length} linha(s) — prévia das primeiras 5</div>
               </div>
               <button onClick={reset} style={{ background:'none', border:'none', color:'#7a7060', cursor:'pointer', fontSize:'12px' }}>Trocar arquivo</button>
             </div>
@@ -187,7 +184,7 @@ export default function ImportarPage() {
             </div>
           </div>
           <div style={{ padding:'10px 14px', background:'rgba(201,147,24,0.06)', border:'1px solid rgba(201,147,24,0.15)', borderRadius:'8px', fontSize:'12px', color:'#a09080' }}>
-            <strong style={{ color:'var(--gold)', display:'block', marginBottom:'3px' }}>Mapeamento automático de colunas</strong>
+            <strong style={{ color:'var(--gold)', display:'block', marginBottom:'3px' }}>Mapeamento automático</strong>
             {type === 'clientes' ? 'Detecta: Nome / Email / Telefone / CPF / Nascimento / Endereço / Observações'
               : 'Detecta: Nome / Email / Telefone / Origem / Status / Valor Potencial / Observações'}
           </div>
@@ -206,7 +203,7 @@ export default function ImportarPage() {
             <div style={{ padding:'1.25rem 1.5rem', background:'rgba(52,211,153,0.06)', border:'1px solid rgba(52,211,153,0.2)', borderRadius:'10px', display:'flex', alignItems:'center', gap:'12px' }}>
               <CheckCircle size={20} style={{ color:'#34d399', flexShrink:0 }} />
               <div>
-                <div style={{ fontSize:'14px', fontWeight:500, color:'#34d399' }}>{result.success} {type === 'clientes' ? 'cliente(s)' : 'lead(s)'} importado(s) com sucesso!</div>
+                <div style={{ fontSize:'14px', fontWeight:500, color:'#34d399' }}>{result.success} {type === 'clientes' ? 'cliente(s)' : 'lead(s)'} importado(s)!</div>
                 <div style={{ fontSize:'12px', color:'#9a9080', marginTop:'2px' }}>Disponíveis imediatamente no sistema.</div>
               </div>
             </div>
@@ -228,12 +225,13 @@ export default function ImportarPage() {
       )}
 
       <div className="card" style={{ padding:'1.5rem', marginTop:'2rem' }}>
-        <div style={{ fontSize:'11px', fontWeight:500, textTransform:'uppercase', letterSpacing:'.07em', color:'var(--gold)', marginBottom:'1rem' }}>Como exportar do Firebase</div>
-        {['Acesse console.firebase.google.com → seu projeto → Firestore Database',
-          'Clique na coleção "clients" ou "leads" no painel esquerdo',
-          'Use a extensão "Export Firestore to CSV" do Chrome ou Firebase CLI',
-          'Salve como .xlsx ou .csv com campos: Nome, Email, Telefone, etc.',
-          'Faça upload aqui — o sistema mapeia as colunas automaticamente.'
+        <div style={{ fontSize:'11px', fontWeight:500, textTransform:'uppercase', letterSpacing:'.07em', color:'var(--gold)', marginBottom:'1rem' }}>Como preparar o arquivo</div>
+        {[
+          'Clique em "Baixar modelo CSV" para obter o formato correto',
+          'Abra no Excel, Google Sheets ou qualquer editor de planilhas',
+          'Preencha a partir da segunda linha — a primeira é o cabeçalho',
+          'Salve como CSV (Arquivo → Salvar como → CSV UTF-8)',
+          'Faça upload aqui — o sistema mapeia as colunas automaticamente',
         ].map((s, i) => (
           <div key={i} style={{ display:'flex', gap:'12px', alignItems:'flex-start', padding:'6px 0', borderTop: i>0 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
             <div style={{ width:'20px', height:'20px', borderRadius:'50%', background:'rgba(201,147,24,0.1)', border:'1px solid rgba(201,147,24,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'10px', fontWeight:600, color:'var(--gold)', flexShrink:0, marginTop:'1px' }}>{i+1}</div>
