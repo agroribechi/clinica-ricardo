@@ -9,7 +9,7 @@ async function getDashboardData() {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll(_c: { name: string; value: string }[]) {} } }
+    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
   )
 
   const now = new Date()
@@ -105,6 +105,8 @@ export default async function DashboardPage() {
             ) : data.handoffLeads.map((m, i) => (
               <Link key={i} href={`/conversas?phone=${m.client_phone?.replace(/\D/g, '')}`}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1.25rem', textDecoration: 'none', transition: 'background 0.15s' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
                 <div>
                   <div style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>{m.client_name}</div>
@@ -133,6 +135,8 @@ export default async function DashboardPage() {
             ) : data.recentClients.map(c => (
               <Link key={c.id} href={`/clientes/${c.id}`}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1.25rem', textDecoration: 'none', transition: 'background 0.15s' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: 'rgba(201,147,24,0.12)', border: '1px solid rgba(201,147,24,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, color: 'var(--gold-light)', flexShrink: 0 }}>

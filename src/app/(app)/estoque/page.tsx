@@ -68,7 +68,7 @@ export default function EstoquePage() {
                   { label:'Unidade', id:'unit' },
                 ].map(({ label, id, type='text', full }) => (
                   <div key={id} style={{ gridColumn: full ? '1/-1' : undefined }}>
-                    <label style={{ display:'block', fontSize:'12px', letterSpacing:'0.05em', textTransform:'uppercase', color:'#888', marginBottom:'0.3rem' }}>{label}</label>
+                    <label style={{ display:'block', fontSize:'11px', letterSpacing:'0.05em', textTransform:'uppercase', color:'#888', marginBottom:'0.3rem' }}>{label}</label>
                     <input type={type} value={(form as any)[id]} onChange={e => setForm(p => ({ ...p, [id]: e.target.value }))} className="input-base" />
                   </div>
                 ))}

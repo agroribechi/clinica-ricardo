@@ -10,7 +10,7 @@ async function getClientes(search?: string) {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll(_c: { name: string; value: string }[]) {} } }
+    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
   )
   let q = supabase.from('clients').select('id, display_name, email, phone, join_date, tags').order('display_name')
   if (search) {
@@ -67,6 +67,8 @@ export default async function ClientesPage({ searchParams }: { searchParams: { q
                         {c.display_name[0]?.toUpperCase()}
                       </div>
                       <Link href={`/clientes/${c.id}`} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: 500, fontSize: '13px' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = 'var(--gold-light)')}
+                        onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-primary)')}
                       >
                         {c.display_name}
                       </Link>
@@ -79,6 +81,8 @@ export default async function ClientesPage({ searchParams }: { searchParams: { q
                   <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{formatDate(c.join_date)}</td>
                   <td>
                     <Link href={`/clientes/${c.id}`} style={{ fontSize: '12px', color: 'var(--gold)', textDecoration: 'none', opacity: 0.7 }}
+                      onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                      onMouseLeave={e => (e.currentTarget.style.opacity = '0.7')}
                     >
                       Ver perfil →
                     </Link>

@@ -19,23 +19,6 @@ export default function LeadsPage() {
   const [newStage, setNewStage] = useState({ name:'', color: STAGE_COLORS[0] })
   const [saving, setSaving] = useState(false)
   const [moving, setMoving] = useState<string | null>(null)
-  const [editingStage, setEditingStage] = useState<{ id: string; name: string } | null>(null)
-
-  async function handleRenameStage(stage: { id: string; name: string }) {
-    const trimmed = stage.name.trim()
-    if (!trimmed) { setEditingStage(null); return }
-    const original = stages.find(s => s.id === stage.id)
-    if (!original || trimmed === original.name) { setEditingStage(null); return }
-    // Atualiza etapa e status dos leads que estavam nela
-    await Promise.all([
-      supabase.from('lead_stages').update({ name: trimmed }).eq('id', stage.id),
-      supabase.from('leads').update({ status: trimmed }).eq('status', original.name),
-    ])
-    setStages(p => p.map(s => s.id === stage.id ? { ...s, name: trimmed } : s))
-    setLeads(p => p.map(l => l.status === original.name ? { ...l, status: trimmed } : l))
-    if (selected?.status === original.name) setSelected(p => p ? { ...p, status: trimmed } : p)
-    setEditingStage(null)
-  }
 
   const load = useCallback(async () => {
     const [{ data: l }, { data: s }] = await Promise.all([
@@ -113,7 +96,7 @@ export default function LeadsPage() {
   const stageIdx = (stageName: string) => stages.findIndex(s => s.name === stageName)
 
   if (loading) return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', color:'#888' }}>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', color:'#444' }}>
       <Loader2 size={20} style={{ animation:'spin 1s linear infinite' }} />
     </div>
   )
@@ -140,10 +123,10 @@ export default function LeadsPage() {
       {/* Estado vazio */}
       {stages.length === 0 && (
         <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem' }}>
-          <div style={{ textAlign:'center', color:'#888' }}>
+          <div style={{ textAlign:'center', color:'#444' }}>
             <div style={{ fontSize:'32px', marginBottom:'0.75rem', opacity:.3 }}>◈</div>
-            <div style={{ fontSize:'14px', color:'#999', marginBottom:'0.5rem' }}>Nenhuma etapa criada ainda</div>
-            <div style={{ fontSize:'12px', color:'#aaa', marginBottom:'1.5rem' }}>Crie etapas para organizar seus leads no funil</div>
+            <div style={{ fontSize:'14px', color:'#555', marginBottom:'0.5rem' }}>Nenhuma etapa criada ainda</div>
+            <div style={{ fontSize:'12px', color:'#333', marginBottom:'1.5rem' }}>Crie etapas para organizar seus leads no funil</div>
             <button onClick={() => setShowStageForm(true)} className="btn-primary">
               <Plus size={14} />Criar primeira etapa
             </button>
@@ -158,7 +141,7 @@ export default function LeadsPage() {
               </button>
             ))}
           </div>
-          <div style={{ fontSize:'11px', color:'#aaa', marginTop:'0.5rem' }}>ou clique nas sugestões acima</div>
+          <div style={{ fontSize:'11px', color:'#333', marginTop:'0.5rem' }}>ou clique nas sugestões acima</div>
         </div>
       )}
 
@@ -171,32 +154,13 @@ export default function LeadsPage() {
               <div key={stage.id} style={{ minWidth:'200px', maxWidth:'200px', display:'flex', flexDirection:'column', gap:'6px' }}>
 
                 {/* Cabeçalho da etapa */}
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 4px', gap:'4px' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:'7px', flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 4px' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'7px' }}>
                     <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:stage.color, flexShrink:0 }} />
-                    {editingStage?.id === stage.id ? (
-                      <input
-                        value={editingStage.name}
-                        onChange={e => setEditingStage({ ...editingStage, name: e.target.value })}
-                        onBlur={() => handleRenameStage(editingStage)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') handleRenameStage(editingStage)
-                          if (e.key === 'Escape') setEditingStage(null)
-                        }}
-                        autoFocus
-                        style={{ fontSize:'11px', fontWeight:500, background:'rgba(201,147,24,0.08)', border:'1px solid rgba(201,147,24,0.3)', borderRadius:'4px', color:'#f0ebe0', padding:'2px 6px', width:'100%', outline:'none', fontFamily:'var(--font-body)' }}
-                      />
-                    ) : (
-                      <span
-                        onClick={() => setEditingStage({ id: stage.id, name: stage.name })}
-                        title="Clique para renomear"
-                        style={{ fontSize:'12px', fontWeight:500, textTransform:'uppercase', letterSpacing:'.06em', color:'#aaa', cursor:'text', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                        {stage.name}
-                      </span>
-                    )}
-                    <span style={{ fontSize:'10px', color:'#888', background:'rgba(255,255,255,0.04)', padding:'1px 6px', borderRadius:'10px', flexShrink:0 }}>{sl.length}</span>
+                    <span style={{ fontSize:'11px', fontWeight:500, textTransform:'uppercase', letterSpacing:'.06em', color:'#666' }}>{stage.name}</span>
+                    <span style={{ fontSize:'10px', color:'#444', background:'rgba(255,255,255,0.04)', padding:'1px 6px', borderRadius:'10px' }}>{sl.length}</span>
                   </div>
-                  <button onClick={() => handleDeleteStage(stage)} style={{ background:'none', border:'none', color:'#555', cursor:'pointer', padding:'2px', borderRadius:'4px', display:'flex', alignItems:'center', flexShrink:0 }}>
+                  <button onClick={() => handleDeleteStage(stage)} style={{ background:'none', border:'none', color:'#333', cursor:'pointer', padding:'2px', borderRadius:'4px', display:'flex', alignItems:'center' }}>
                     <X size={11} />
                   </button>
                 </div>
@@ -213,7 +177,7 @@ export default function LeadsPage() {
                         onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)')}
                       >
                         <div style={{ fontSize:'12px', fontWeight:500, color:'#d0c8bc', marginBottom:'3px', lineHeight:1.3 }}>{lead.name}</div>
-                        {lead.phone && <div style={{ fontSize:'10px', color:'#888', fontFamily:'DM Mono, monospace' }}>{lead.phone}</div>}
+                        {lead.phone && <div style={{ fontSize:'10px', color:'#444', fontFamily:'DM Mono, monospace' }}>{lead.phone}</div>}
                         {lead.potential_value ? <div style={{ fontSize:'11px', color:'#c99318', marginTop:'5px' }}>{formatCurrency(lead.potential_value)}</div> : null}
 
                         {/* Setas de movimentação */}
@@ -261,7 +225,7 @@ export default function LeadsPage() {
           {/* Botão adicionar etapa inline */}
           <div style={{ minWidth:'160px' }}>
             <button onClick={() => setShowStageForm(true)}
-              style={{ width:'100%', padding:'8px 12px', borderRadius:'8px', border:'1px dashed rgba(201,147,24,0.2)', background:'transparent', color:'#888', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', gap:'6px', transition:'all .15s' }}
+              style={{ width:'100%', padding:'8px 12px', borderRadius:'8px', border:'1px dashed rgba(201,147,24,0.2)', background:'transparent', color:'#444', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', gap:'6px', transition:'all .15s' }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(201,147,24,0.4)'; (e.currentTarget as HTMLElement).style.color = '#888' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(201,147,24,0.2)'; (e.currentTarget as HTMLElement).style.color = '#444' }}
             >
@@ -276,12 +240,12 @@ export default function LeadsPage() {
         <div style={{ position:'fixed', right:0, top:0, bottom:0, width:'300px', background:'#141414', borderLeft:'1px solid rgba(201,147,24,0.15)', padding:'1.5rem', zIndex:40, overflowY:'auto' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.25rem' }}>
             <h2 style={{ fontFamily:'Cormorant Garamond, serif', fontSize:'1.4rem', fontWeight:300, color:'#f5f0e8', lineHeight:1.2 }}>{selected.name}</h2>
-            <button onClick={() => setSelected(null)} style={{ background:'none', border:'none', color:'#888', cursor:'pointer', fontSize:'20px', lineHeight:1 }}>×</button>
+            <button onClick={() => setSelected(null)} style={{ background:'none', border:'none', color:'#444', cursor:'pointer', fontSize:'20px', lineHeight:1 }}>×</button>
           </div>
 
           {/* Etapa atual */}
           <div style={{ marginBottom:'1.25rem' }}>
-            <div style={{ fontSize:'12px', letterSpacing:'.06em', textTransform:'uppercase', color:'#888', marginBottom:'8px' }}>Etapa atual</div>
+            <div style={{ fontSize:'10px', letterSpacing:'.06em', textTransform:'uppercase', color:'#444', marginBottom:'8px' }}>Etapa atual</div>
             <div style={{ display:'flex', alignItems:'center', gap:'7px', padding:'8px 12px', background:'rgba(201,147,24,0.06)', border:'1px solid rgba(201,147,24,0.15)', borderRadius:'7px' }}>
               <div style={{ width:'8px', height:'8px', borderRadius:'50%', background: stages.find(s => s.name === selected.status)?.color || '#888' }} />
               <span style={{ fontSize:'13px', color:'#d0c8bc' }}>{selected.status}</span>
@@ -290,10 +254,10 @@ export default function LeadsPage() {
 
           {/* Mover etapa */}
           <div style={{ marginBottom:'1.25rem' }}>
-            <div style={{ fontSize:'12px', letterSpacing:'.06em', textTransform:'uppercase', color:'#888', marginBottom:'8px' }}>Mover para</div>
+            <div style={{ fontSize:'10px', letterSpacing:'.06em', textTransform:'uppercase', color:'#444', marginBottom:'8px' }}>Mover para</div>
             <div style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
               {stages.map((s, i) => (
-                <button key={s.id}
+                <button key={s.id} onClick={() => handleMoveLead(selected, s.order > stages.find(st => st.name === selected.status)!.order ? 'next' : 'prev')}
                   disabled={s.name === selected.status}
                   style={{ display:'flex', alignItems:'center', gap:'8px', padding:'6px 10px', borderRadius:'6px', border:'none', cursor: s.name === selected.status ? 'default' : 'pointer', background: s.name === selected.status ? 'rgba(201,147,24,0.08)' : 'transparent', color: s.name === selected.status ? '#e4b530' : '#666', fontSize:'12px', textAlign:'left', transition:'all .15s' }}
                   onMouseEnter={e => { if (s.name !== selected.status) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)' }}
@@ -317,7 +281,7 @@ export default function LeadsPage() {
           <div style={{ height:'1px', background:'rgba(255,255,255,0.04)', marginBottom:'1rem' }} />
 
           {/* Detalhes */}
-          <div style={{ fontSize:'12px', letterSpacing:'.06em', textTransform:'uppercase', color:'#888', marginBottom:'8px' }}>Detalhes</div>
+          <div style={{ fontSize:'10px', letterSpacing:'.06em', textTransform:'uppercase', color:'#444', marginBottom:'8px' }}>Detalhes</div>
           {[
             { label:'Telefone', value: selected.phone },
             { label:'E-mail', value: selected.email },
@@ -326,15 +290,15 @@ export default function LeadsPage() {
             { label:'Criado em', value: formatDate(selected.created_at) },
           ].filter(d => d.value).map(({ label, value }) => (
             <div key={label} style={{ display:'flex', justifyContent:'space-between', padding:'6px 0', borderBottom:'1px solid rgba(255,255,255,0.03)', fontSize:'12px' }}>
-              <span style={{ color:'#888' }}>{label}</span>
+              <span style={{ color:'#444' }}>{label}</span>
               <span style={{ color:'#888' }}>{value}</span>
             </div>
           ))}
 
           {selected.notes && (
             <div style={{ marginTop:'1rem' }}>
-              <div style={{ fontSize:'12px', letterSpacing:'.06em', textTransform:'uppercase', color:'#888', marginBottom:'6px' }}>Notas</div>
-              <p style={{ fontSize:'12px', color:'#aaa', lineHeight:1.6 }}>{selected.notes}</p>
+              <div style={{ fontSize:'10px', letterSpacing:'.06em', textTransform:'uppercase', color:'#444', marginBottom:'6px' }}>Notas</div>
+              <p style={{ fontSize:'12px', color:'#666', lineHeight:1.6 }}>{selected.notes}</p>
             </div>
           )}
 
@@ -359,7 +323,7 @@ export default function LeadsPage() {
                 { label:'Notas', id:'notes', type:'text' },
               ].map(({ label, id, type }) => (
                 <div key={id}>
-                  <label style={{ display:'block', fontSize:'11px', letterSpacing:'.05em', textTransform:'uppercase', color:'#aaa', marginBottom:'0.3rem' }}>{label}</label>
+                  <label style={{ display:'block', fontSize:'11px', letterSpacing:'.05em', textTransform:'uppercase', color:'#666', marginBottom:'0.3rem' }}>{label}</label>
                   <input type={type} value={(newLead as any)[id]} onChange={e => setNewLead(p => ({ ...p, [id]: e.target.value }))} className="input-base" />
                 </div>
               ))}
@@ -381,11 +345,11 @@ export default function LeadsPage() {
             <h2 style={{ fontFamily:'Cormorant Garamond, serif', fontSize:'1.5rem', fontWeight:300, color:'#f5f0e8', marginBottom:'1.25rem' }}>Nova Etapa</h2>
             <form onSubmit={handleSaveStage} style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
               <div>
-                <label style={{ display:'block', fontSize:'11px', letterSpacing:'.05em', textTransform:'uppercase', color:'#aaa', marginBottom:'0.3rem' }}>Nome da etapa *</label>
+                <label style={{ display:'block', fontSize:'11px', letterSpacing:'.05em', textTransform:'uppercase', color:'#666', marginBottom:'0.3rem' }}>Nome da etapa *</label>
                 <input value={newStage.name} onChange={e => setNewStage(p => ({ ...p, name: e.target.value }))} placeholder="Ex: Proposta Enviada" className="input-base" />
               </div>
               <div>
-                <label style={{ display:'block', fontSize:'11px', letterSpacing:'.05em', textTransform:'uppercase', color:'#aaa', marginBottom:'0.5rem' }}>Cor da etapa</label>
+                <label style={{ display:'block', fontSize:'11px', letterSpacing:'.05em', textTransform:'uppercase', color:'#666', marginBottom:'0.5rem' }}>Cor da etapa</label>
                 <div style={{ display:'flex', gap:'8px', flexWrap:'wrap' }}>
                   {STAGE_COLORS.map(color => (
                     <div key={color} onClick={() => setNewStage(p => ({ ...p, color }))}

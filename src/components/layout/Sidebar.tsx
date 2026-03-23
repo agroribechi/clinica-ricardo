@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, Users, Filter, MessageSquare,
-  Package, BrainCircuit, Settings, LogOut, Sparkles, Upload
+  Package, BrainCircuit, Settings, LogOut, Sparkles
 } from 'lucide-react'
 
 const nav = [
@@ -15,7 +15,6 @@ const nav = [
   { href: '/servicos',      icon: Sparkles,        label: 'Serviços' },
   { href: '/estoque',       icon: Package,         label: 'Estoque' },
   { href: '/treinamento',   icon: BrainCircuit,    label: 'Treinamento IA' },
-  { href: '/importar',      icon: Upload,          label: 'Importar Dados' },
   { href: '/configuracoes', icon: Settings,        label: 'Configurações' },
 ]
 

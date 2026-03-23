@@ -70,17 +70,17 @@ export default function ServicosPage() {
                 { label:'Descrição', id:'description' },
               ].map(({ label, id }) => (
                 <div key={id}>
-                  <label style={{ display:'block', fontSize:'12px', letterSpacing:'0.05em', textTransform:'uppercase', color:'#888', marginBottom:'0.3rem' }}>{label}</label>
+                  <label style={{ display:'block', fontSize:'11px', letterSpacing:'0.05em', textTransform:'uppercase', color:'#888', marginBottom:'0.3rem' }}>{label}</label>
                   <input value={(form as any)[id]} onChange={e => setForm(p => ({ ...p, [id]: e.target.value }))} className="input-base" />
                 </div>
               ))}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.875rem' }}>
                 <div>
-                  <label style={{ display:'block', fontSize:'12px', letterSpacing:'0.05em', textTransform:'uppercase', color:'#888', marginBottom:'0.3rem' }}>Duração (min)</label>
+                  <label style={{ display:'block', fontSize:'11px', letterSpacing:'0.05em', textTransform:'uppercase', color:'#888', marginBottom:'0.3rem' }}>Duração (min)</label>
                   <input type="number" value={form.duration_minutes} onChange={e => setForm(p => ({ ...p, duration_minutes: e.target.value }))} className="input-base" />
                 </div>
                 <div>
-                  <label style={{ display:'block', fontSize:'12px', letterSpacing:'0.05em', textTransform:'uppercase', color:'#888', marginBottom:'0.3rem' }}>Preço (R$)</label>
+                  <label style={{ display:'block', fontSize:'11px', letterSpacing:'0.05em', textTransform:'uppercase', color:'#888', marginBottom:'0.3rem' }}>Preço (R$)</label>
                   <input type="number" step="0.01" value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} className="input-base" />
                 </div>
               </div>
@@ -100,7 +100,7 @@ export default function ServicosPage() {
         <div style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
           {categories.length > 0 ? categories.map(cat => (
             <div key={cat}>
-              <div style={{ fontSize:'12px', letterSpacing:'0.08em', textTransform:'uppercase', color:'var(--text-muted)', marginBottom:'0.5rem', paddingLeft:'0.25rem' }}>{cat}</div>
+              <div style={{ fontSize:'11px', letterSpacing:'0.08em', textTransform:'uppercase', color:'var(--text-muted)', marginBottom:'0.5rem', paddingLeft:'0.25rem' }}>{cat}</div>
               <div className="card">
                 <table className="table-base">
                   <thead><tr><th>Serviço</th><th>Duração</th><th>Preço</th><th></th></tr></thead>

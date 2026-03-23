@@ -42,7 +42,7 @@ export default function ConfiguracoesPage() {
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div className="card" style={{ padding:'1.5rem', marginBottom:'1rem' }}>
-      <div style={{ fontSize:'12px', letterSpacing:'0.08em', textTransform:'uppercase', color:'var(--gold)', marginBottom:'1.25rem' }}>{title}</div>
+      <div style={{ fontSize:'11px', letterSpacing:'0.08em', textTransform:'uppercase', color:'var(--gold)', marginBottom:'1.25rem' }}>{title}</div>
       <div style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
         {children}
       </div>
@@ -51,7 +51,7 @@ export default function ConfiguracoesPage() {
 
   const Field = ({ label, id, type='text', placeholder='', hint='', secret=false }: any) => (
     <div>
-      <label style={{ display:'block', fontSize:'12px', letterSpacing:'0.05em', textTransform:'uppercase', color:'#888', marginBottom:'0.4rem' }}>{label}</label>
+      <label style={{ display:'block', fontSize:'11px', letterSpacing:'0.05em', textTransform:'uppercase', color:'#888', marginBottom:'0.4rem' }}>{label}</label>
       <div style={{ position:'relative' }}>
         <input
           type={secret && !showKey ? 'password' : type}
