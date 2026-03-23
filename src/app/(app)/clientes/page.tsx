@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
-import { formatDate, normalizePhone } from '@/lib/utils'
+import { formatDate, formatPhone } from '@/lib/utils'
 import { UserPlus, Search } from 'lucide-react'
 import { ClientSearch } from '@/components/clientes/ClientSearch'
 
@@ -20,8 +20,9 @@ async function getClientes(search?: string) {
   return data || []
 }
 
-export default async function ClientesPage({ searchParams }: { searchParams: { q?: string } }) {
-  const search = searchParams.q || ''
+export default async function ClientesPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const { q } = await searchParams
+  const search = q || ''
   const clients = await getClientes(search)
 
   return (
@@ -74,7 +75,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: { q
                   </td>
                   <td style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>{c.email || '—'}</td>
                   <td style={{ color: 'var(--text-secondary)', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>
-                    {c.phone ? normalizePhone(c.phone) : '—'}
+                    {c.phone ? formatPhone(c.phone) : '—'}
                   </td>
                   <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{formatDate(c.join_date)}</td>
                   <td>

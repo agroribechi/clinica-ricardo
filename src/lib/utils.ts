@@ -29,6 +29,20 @@ export function normalizePhone(phone?: string | null): string {
   return phone.split('@')[0].replace(/\D/g, '')
 }
 
+export function formatPhone(phone?: string | null): string {
+  const digits = normalizePhone(phone)
+  if (!digits) return ''
+  // Remove DDI 55 se presente e resultar em 10 ou 11 dígitos
+  const local = digits.startsWith('55') && digits.length >= 12 ? digits.slice(2) : digits
+  if (local.length === 11) {
+    return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`
+  }
+  if (local.length === 10) {
+    return `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`
+  }
+  return digits
+}
+
 export function phonesMatch(a?: string | null, b?: string | null): boolean {
   const na = normalizePhone(a)
   const nb = normalizePhone(b)
