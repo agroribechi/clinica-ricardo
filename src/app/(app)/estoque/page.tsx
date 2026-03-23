@@ -34,7 +34,7 @@ export default function EstoquePage() {
     setSaving(true)
     const data = { name:form.name, category:form.category||null, stock:parseInt(form.stock)||0, max_stock:parseInt(form.max_stock)||100, low_stock_threshold:parseInt(form.low_stock_threshold)||10, unit:form.unit||'un' }
     if (editing) await supabase.from('products').update(data).eq('id', editing.id)
-    else await supabase.from('products').insert(data)
+    else await supabase.from('products').insert(data as any)
     setSaving(false); setShowForm(false); setEditing(null); setForm(EMPTY); load()
   }
 
@@ -68,7 +68,7 @@ export default function EstoquePage() {
                   { label:'Unidade', id:'unit' },
                 ].map(({ label, id, type='text', full }) => (
                   <div key={id} style={{ gridColumn: full ? '1/-1' : undefined }}>
-                    <label style={{ display:'block', fontSize:'11px', letterSpacing:'0.05em', textTransform:'uppercase', color:'#888', marginBottom:'0.3rem' }}>{label}</label>
+                    <label style={{ display:'block', fontSize:'12px', letterSpacing:'0.05em', textTransform:'uppercase', color:'#888', marginBottom:'0.3rem' }}>{label}</label>
                     <input type={type} value={(form as any)[id]} onChange={e => setForm(p => ({ ...p, [id]: e.target.value }))} className="input-base" />
                   </div>
                 ))}

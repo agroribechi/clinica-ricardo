@@ -10,7 +10,7 @@ async function getClient(id: string) {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+    { cookies: { getAll() { return cookieStore.getAll() }, setAll(_c: { name: string; value: string }[]) {} } }
   )
   const [{ data: client }, { data: treatments }] = await Promise.all([
     supabase.from('clients').select('*').eq('id', id).single(),
@@ -28,8 +28,6 @@ export default async function ClienteDetailPage({ params }: { params: { id: stri
   return (
     <div style={{ padding: '2rem', maxWidth: '1000px' }}>
       <Link href="/clientes" style={{ display:'inline-flex', alignItems:'center', gap:'6px', fontSize:'13px', color:'var(--text-muted)', textDecoration:'none', marginBottom:'1.5rem' }}
-        onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-secondary)')}
-        onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
       >
         <ArrowLeft size={14} /> Clientes
       </Link>

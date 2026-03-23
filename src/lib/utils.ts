@@ -33,7 +33,10 @@ export function phonesMatch(a?: string | null, b?: string | null): boolean {
   const na = normalizePhone(a)
   const nb = normalizePhone(b)
   if (!na || !nb) return false
-  return na.endsWith(nb.slice(-8)) || nb.endsWith(na.slice(-8))
+  // Compara pelos últimos 9 dígitos (DDD + 9 dígitos) para ignorar DDI
+  const ta = na.slice(-9)
+  const tb = nb.slice(-9)
+  return ta === tb || na.endsWith(tb) || nb.endsWith(ta)
 }
 
 export function initials(name?: string | null): string {

@@ -41,7 +41,7 @@ export default function LoginPage() {
           <h1 style={{ fontFamily:'var(--font-display)', fontSize:'1.5rem', fontWeight:400, color:'#f5f0e8', marginBottom:'0.25rem' }}>
             Acesso ao sistema
           </h1>
-          <p style={{ fontSize:'13px', color:'#666', marginBottom:'1.75rem' }}>
+          <p style={{ fontSize:'13px', color:'#aaa', marginBottom:'1.75rem' }}>
             Entre com suas credenciais para continuar
           </p>
 
@@ -85,7 +85,7 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p style={{ textAlign:'center', marginTop:'1.5rem', fontSize:'12px', color:'#444' }}>
+        <p style={{ textAlign:'center', marginTop:'1.5rem', fontSize:'12px', color:'#999' }}>
           Sistema interno — Med Bio Estética
         </p>
       </div>

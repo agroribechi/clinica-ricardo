@@ -71,7 +71,7 @@ export default function TreinamentoPage() {
             <button key={c.id} onClick={() => setActive(c.id)}
               style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', padding:'0.75rem', borderRadius:'8px', border:'none', cursor:'pointer', background: active===c.id ? 'rgba(201,147,24,0.1)' : 'transparent', borderLeft: active===c.id ? '2px solid var(--gold)' : '2px solid transparent', transition:'all 0.15s' }}>
               <span style={{ fontSize:'13px', fontWeight:500, color: active===c.id ? 'var(--gold-light)' : 'var(--text-secondary)' }}>{c.label}</span>
-              <span style={{ fontSize:'11px', color:'var(--text-muted)', marginTop:'2px' }}>{c.desc}</span>
+              <span style={{ fontSize:'12px', color:'var(--text-muted)', marginTop:'2px' }}>{c.desc}</span>
             </button>
           ))}
         </div>
