@@ -24,14 +24,38 @@ export async function POST(request: Request) {
   }
 
   const normalizedPhone = normalizePhone(clientPhone)
+  const isNumericId = normalizedPhone.length > 13
+
+  // Tenta resolver o telefone real se for um ID numérico longo
+  let finalPhone = normalizedPhone
+  let resolvedClientMatch: any = null
+
+  if (isNumericId) {
+    // Busca lead por esse ID salvo como telefone
+    const { data: leadMatch } = await supabase
+      .from('leads')
+      .select('phone, name')
+      .eq('phone', normalizedPhone)
+      .limit(1)
+      .maybeSingle()
+    
+    // Se encontrou, pelo menos mantém o vínculo (ou podíamos tentar buscar o telefone real em outro lead do mesmo nome)
+    if (leadMatch) {
+      console.log(`Resolvido ID ${normalizedPhone} para lead ${leadMatch.name}`)
+    }
+  }
 
   // Verifica se é cliente com query pontual
   const { data: clientMatch } = await supabase
-    .from('clients').select('id').or(`phone.eq.${normalizedPhone},phone.ilike.%${normalizedPhone.slice(-8)}`).limit(1).maybeSingle()
+    .from('clients')
+    .select('id')
+    .or(`phone.eq.${finalPhone},phone.ilike.%${finalPhone.slice(-8)}`)
+    .limit(1)
+    .maybeSingle()
 
   const { error } = await supabase.from('whatsapp_messages').insert({
     client_name: clientName || 'Desconhecido',
-    client_phone: normalizedPhone,
+    client_phone: finalPhone,
     sender_phone: isValidPhone(senderPhone) ? normalizePhone(senderPhone) : null,
     content: content || '',
     message: message || '',
