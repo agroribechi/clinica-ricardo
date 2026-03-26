@@ -284,6 +284,43 @@ export default function ImportarPage() {
                 <AlertTriangle size={12} /> Nenhuma coluna de "Status/Etapa" detectada. Os leads serão criados como "Novo Lead".
               </div>
             )}
+            
+            <div style={{ marginTop:'12px', borderTop:'1px solid rgba(255,255,255,0.05)', paddingTop:'10px' }}>
+              <strong style={{ color:'var(--gold)', display:'block', marginBottom:'6px', fontSize:'11px', textTransform:'uppercase' }}>Prévia do Mapeamento (Primeiros 3 itens)</strong>
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', fontSize:'10px', borderCollapse:'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign:'left', padding:'4px', borderBottom:'1px solid rgba(255,255,255,0.1)' }}>Nome</th>
+                      <th style={{ textAlign:'left', padding:'4px', borderBottom:'1px solid rgba(255,255,255,0.1)' }}>{type === 'leads' ? 'Status detectado' : 'Telefone'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allRows.slice(0, 3).map((row, i) => {
+                      if (type === 'clientes') {
+                        const item = mapCliente(row)
+                        return (
+                          <tr key={i}>
+                            <td style={{ padding:'4px', color:'var(--text-secondary)' }}>{item.display_name}</td>
+                            <td style={{ padding:'4px', color:'var(--text-muted)' }}>{item.phone}</td>
+                          </tr>
+                        )
+                      } else {
+                        const item = mapLead(row)
+                        return (
+                          <tr key={i}>
+                            <td style={{ padding:'4px', color:'var(--text-secondary)' }}>{item.name}</td>
+                            <td style={{ padding:'4px', color: item.status !== 'Novo Lead' ? '#34d399' : 'var(--text-muted)' }}>
+                              {item.status}
+                            </td>
+                          </tr>
+                        )
+                      }
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
           <div style={{ display:'flex', gap:'0.75rem', justifyContent:'flex-end' }}>
             <button onClick={reset} className="btn-ghost">Cancelar</button>
