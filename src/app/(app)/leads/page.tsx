@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import type { Lead, LeadStage } from '@/types/database'
-import { Plus, ChevronLeft, ChevronRight, Settings, X, Loader2, Trash2, Search } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Settings, X, Loader2, Trash2, Search, Zap, Play, Save } from 'lucide-react'
 
 const STAGE_COLORS = ['#888','#3b82f6','#f59e0b','#8b5cf6','#10b981','#ef4444','#ec4899','#06b6d4']
 
@@ -21,6 +21,8 @@ export default function LeadsPage() {
   const [moving, setMoving] = useState<string | null>(null)
   const [editingStage, setEditingStage] = useState<{ id: string; name: string } | null>(null)
   const [search, setSearch] = useState('')
+  const [automations, setAutomations] = useState<any[]>([])
+  const [showAutomation, setShowAutomation] = useState<LeadStage | null>(null)
 
   // Filtra leads pelo termo de busca (nome ou telefone)
   const searchTerm = search.trim().toLowerCase()
@@ -58,12 +60,14 @@ export default function LeadsPage() {
   }
 
   const load = useCallback(async () => {
-    const [{ data: l }, { data: s }] = await Promise.all([
+    const [{ data: l }, { data: s }, { data: a }] = await Promise.all([
       supabase.from('leads').select('*').order('created_at', { ascending: false }),
       supabase.from('lead_stages').select('*').order('order'),
+      supabase.from('stage_automations').select('*'),
     ])
     setLeads(l || [])
     setStages(s || [])
+    setAutomations(a || [])
     setLoading(false)
   }, [])
 
@@ -79,6 +83,37 @@ export default function LeadsPage() {
     setLeads(p => p.map(l => l.id === lead.id ? { ...l, status: targetStatus } : l))
     if (selected?.id === lead.id) setSelected(p => p ? { ...p, status: targetStatus } : p)
     setMoving(null)
+    
+    // Trigger automation if target stage has one active
+    const auto = automations.find(a => a.stage_id === stages[targetIdx].id)
+    if (auto?.is_active) {
+      handleTriggerAutomation(lead, auto)
+    }
+  }
+
+  async function handleTriggerAutomation(lead: Lead, auto: any) {
+    console.log(`Triggering automation for ${lead.name} in stage ${lead.status}...`)
+    // If webhook_url is provided, hit it. Otherwise mock or use default.
+    const url = auto.webhook_url || 'https://n8n.seuservidor.com/webhook/crm-trigger'
+    try {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'lead_moved',
+          lead_id: lead.id,
+          lead_name: lead.name,
+          lead_phone: lead.phone,
+          message: auto.message_template.replace('@nome', lead.name),
+          delay_minutes: auto.delay_minutes
+        })
+      })
+      // Update last triggered at
+      await supabase.from('stage_automations').update({ last_triggered_at: new Date().toISOString() }).eq('id', auto.id)
+      setAutomations(p => p.map(a => a.id === auto.id ? { ...a, last_triggered_at: new Date().toISOString() } : a))
+    } catch (e) {
+      console.error('Failed to trigger n8n:', e)
+    }
   }
 
   async function handleDeleteLead(id: string) {
@@ -242,6 +277,24 @@ export default function LeadsPage() {
                       </span>
                     )}
                     <span style={{ fontSize:'10px', color:'#888', background:'rgba(255,255,255,0.04)', padding:'1px 6px', borderRadius:'10px', flexShrink:0 }}>{sl.length}</span>
+                    <button 
+                      onClick={() => setShowAutomation(stage)}
+                      style={{ 
+                        background:'none', 
+                        border:'none', 
+                        color: automations.find(a => a.stage_id === stage.id)?.is_active ? '#e4b530' : '#444', 
+                        cursor:'pointer', 
+                        padding:'2px', 
+                        display:'flex', 
+                        alignItems:'center', 
+                        flexShrink:0,
+                        transition:'color .15s'
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.color = '#e4b530')}
+                      onMouseLeave={e => (e.currentTarget.style.color = automations.find(a => a.stage_id === stage.id)?.is_active ? '#e4b530' : '#444')}
+                    >
+                      <Zap size={11} fill={automations.find(a => a.stage_id === stage.id)?.is_active ? 'currentColor' : 'none'} />
+                    </button>
                   </div>
                   <button onClick={() => handleDeleteStage(stage)} style={{ background:'none', border:'none', color:'#555', cursor:'pointer', padding:'2px', borderRadius:'4px', display:'flex', alignItems:'center', flexShrink:0 }}>
                     <X size={11} />
@@ -458,6 +511,137 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+      {/* Modal Automação */}
+      {showAutomation && (
+        <AutomationModal 
+          stage={showAutomation} 
+          automation={automations.find(a => a.stage_id === showAutomation.id)}
+          onClose={() => setShowAutomation(null)}
+          onSave={async (data) => {
+            const existing = automations.find(a => a.stage_id === showAutomation.id)
+            if (existing) {
+              await supabase.from('stage_automations').update(data).eq('id', existing.id)
+            } else {
+              await supabase.from('stage_automations').insert({ ...data, stage_id: showAutomation.id })
+            }
+            load()
+            setShowAutomation(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function AutomationModal({ stage, automation, onClose, onSave }: { stage: LeadStage; automation: any; onClose: () => void; onSave: (data: any) => void }) {
+  const [data, setData] = useState({
+    message_template: automation?.message_template || '',
+    delay_minutes: automation?.delay_minutes || 0,
+    is_active: automation?.is_active || false,
+    webhook_url: automation?.webhook_url || ''
+  })
+  const [saving, setSaving] = useState(false)
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:70, display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ background:'#141414', border:'1px solid rgba(201,147,24,0.15)', borderRadius:'12px', width:'100%', maxWidth:'420px', padding:'1.75rem' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.25rem' }}>
+          <div>
+            <div style={{ fontSize:'11px', color:'#888', textTransform:'uppercase', letterSpacing:'.05em' }}>Automação da Etapa</div>
+            <h2 style={{ fontFamily:'Cormorant Garamond, serif', fontSize:'1.5rem', fontWeight:300, color:'#f5f0e8' }}>{stage.name}</h2>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'#888', cursor:'pointer' }}><X size={20} /></button>
+        </div>
+
+        <div style={{ display:'flex', flexDirection:'column', gap:'1.25rem' }}>
+          <div>
+            <label style={{ display:'block', fontSize:'11px', color:'#aaa', marginBottom:'0.4rem', textTransform:'uppercase' }}>Mensagem Automática</label>
+            <textarea 
+              value={data.message_template}
+              onChange={e => setData({ ...data, message_template: e.target.value })}
+              placeholder="Olá @nome, notamos que você..."
+              style={{ width:'100%', minHeight:'100px', padding:'10px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'8px', color:'#f5f0e8', fontSize:'13px', outline:'none', resize:'vertical', fontFamily:'var(--font-body)' }}
+            />
+            <div style={{ fontSize:'10px', color:'#666', marginTop:'4px' }}>Use @nome para personalizar com o nome do lead.</div>
+          </div>
+
+          <div style={{ display:'flex', gap:'1rem' }}>
+            <div style={{ flex:1 }}>
+              <label style={{ display:'block', fontSize:'11px', color:'#aaa', marginBottom:'0.4rem', textTransform:'uppercase' }}>Atraso (minutos)</label>
+              <input 
+                type="number"
+                value={data.delay_minutes}
+                onChange={e => setData({ ...data, delay_minutes: parseInt(e.target.value) || 0 })}
+                style={{ width:'100%', padding:'8px 12px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'8px', color:'#f5f0e8', fontSize:'13px', outline:'none' }}
+              />
+            </div>
+            <div style={{ flex:1, display:'flex', flexDirection:'column', justifyContent:'center' }}>
+              <label style={{ display:'flex', alignItems:'center', gap:'8px', cursor:'pointer' }}>
+                <input 
+                  type="checkbox"
+                  checked={data.is_active}
+                  onChange={e => setData({ ...data, is_active: e.target.checked })}
+                  style={{ width:'16px', height:'16px', accentColor:'#c99318' }}
+                />
+                <span style={{ fontSize:'12px', color:'#f5f0e8' }}>Ativar Disparo</span>
+              </label>
+            </div>
+          </div>
+
+          <div style={{ paddingTop:'0.5rem' }}>
+            <label style={{ display:'block', fontSize:'11px', color:'#aaa', marginBottom:'0.4rem', textTransform:'uppercase' }}>Webhook n8n (opcional)</label>
+            <input 
+              value={data.webhook_url}
+              onChange={e => setData({ ...data, webhook_url: e.target.value })}
+              placeholder="https://n8n.seuservidor.com/..."
+              style={{ width:'100%', padding:'8px 12px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'8px', color:'#f5f0e8', fontSize:'11px', outline:'none' }}
+            />
+          </div>
+
+          {automation?.last_triggered_at && (
+            <div style={{ fontSize:'10px', color:'#666', textAlign:'right' }}>
+              Último disparo em: {new Date(automation.last_triggered_at).toLocaleString('pt-BR')}
+            </div>
+          )}
+
+          <div style={{ height:'1px', background:'rgba(255,255,255,0.05)', margin:'0.5rem 0' }} />
+
+          <div>
+            <button 
+              onClick={() => {
+                if (confirm(`Deseja enviar a mensagem agora para todos os leads nesta etapa?`)) {
+                  alert('Disparo em massa iniciado! Verifique o n8n para progresso.')
+                }
+              }}
+              style={{ width:'100%', padding:'10px', background:'rgba(201,147,24,0.1)', border:'1px solid rgba(201,147,24,0.3)', borderRadius:'8px', color:'#e4b530', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}
+            >
+              <Play size={13} fill="currentColor" /> Enviar para todos desta etapa agora
+            </button>
+            <button 
+              disabled
+              style={{ width:'100%', padding:'6px', background:'none', border:'none', color:'#444', fontSize:'10px', cursor:'not-allowed', marginTop:'4px', textDecoration:'underline' }}
+            >
+              Gerenciar envios e logs (em breve)
+            </button>
+          </div>
+
+          <div style={{ display:'flex', gap:'0.75rem', marginTop:'0.5rem', justifyContent:'flex-end' }}>
+            <button onClick={onClose} className="btn-ghost">Cancelar</button>
+            <button 
+              onClick={async () => {
+                setSaving(true)
+                try { await onSave(data) } finally { setSaving(false) }
+              }} 
+              disabled={saving}
+              className="btn-primary" 
+              style={{ gap:'6px' }}
+            >
+              {saving ? <Loader2 size={13} style={{ animation:'spin 1s linear infinite' }} /> : <Save size={13} />}
+              Salvar Automação
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
