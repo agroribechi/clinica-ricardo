@@ -123,8 +123,8 @@ export default function ImportarPage() {
     const errors: string[] = []
     
     // Busca as etapas atuais para normalização de status
-    const { data: stages } = await supabase.from('lead_stages').select('name').order('order')
-    const stageNames = stages?.map(s => s.name) || []
+    const { data: stages } = await supabase.from('lead_stages').select('name, order').order('order')
+    let stageNames = stages?.map(s => s.name) || []
     const defaultStage = stageNames[0] || 'Novo Lead'
 
     // Busca contatos existentes para evitar duplicados (por telefone ou e-mail)
@@ -132,6 +132,24 @@ export default function ImportarPage() {
     const { data: existing } = await supabase.from(table).select('phone, email')
     const existingPhones = new Set(existing?.map(e => e.phone?.replace(/\D/g, '')).filter(Boolean))
     const existingEmails = new Set(existing?.map(e => e.email?.toLowerCase().trim()).filter(Boolean))
+
+    // Cria etapas faltantes se for importação de leads
+    if (type === 'leads') {
+      const csvStages = Array.from(new Set(allRows.map(mapLead).map(r => r.status).filter(Boolean)))
+      const missing = csvStages.filter(cs => !stageNames.some(sn => sn.toLowerCase() === cs.toLowerCase()))
+      
+      if (missing.length > 0) {
+        const lastOrder = stages?.length ? Math.max(...stages.map(s => s.order)) : -1
+        const newStages = missing.map((name, i) => ({ name, order: lastOrder + 1 + i, color: '#c99318' }))
+        const { error: stageError } = await supabase.from('lead_stages').insert(newStages)
+        if (!stageError) {
+          const { data: updatedStages } = await supabase.from('lead_stages').select('name').order('order')
+          stageNames = updatedStages?.map(s => s.name) || []
+        } else {
+          errors.push(`Erro ao criar etapas: ${stageError.message}`)
+        }
+      }
+    }
 
     const BATCH = 50
     for (let i = 0; i < allRows.length; i += BATCH) {
