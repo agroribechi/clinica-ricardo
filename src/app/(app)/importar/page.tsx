@@ -29,26 +29,26 @@ function get(row: Row, ...keys: string[]): string | null {
 
 function mapCliente(row: Row) {
   return {
-    display_name: get(row,'nome','name','display_name','cliente','nome completo') || '',
-    email:        get(row,'email','e-mail') || null,
-    phone:        get(row,'telefone','phone','fone','celular','whatsapp') || null,
-    cpf:          get(row,'cpf') || null,
-    dob:          get(row,'nascimento','dob','data de nascimento') || null,
-    address:      get(row,'endereco','endereço','address') || null,
-    notes:        get(row,'observacoes','observações','notes','obs') || null,
+    display_name: get(row,'nome','name','display_name','cliente','nome completo','full_name','username','user_name') || '',
+    email:        get(row,'email','e-mail','mail','correo') || null,
+    phone:        get(row,'telefone','phone','fone','celular','whatsapp','wa','cell','mobile','phoneNumber','phone_number') || null,
+    cpf:          get(row,'cpf','document','documento') || null,
+    dob:          get(row,'nascimento','dob','data de nascimento','birth','birthday') || null,
+    address:      get(row,'endereco','endereço','address','location') || null,
+    notes:        get(row,'observacoes','observações','notes','obs','description','comentario') || null,
   }
 }
 
 function mapLead(row: Row) {
   return {
-    name:            get(row,'nome','name','lead','nome completo') || '',
-    email:           get(row,'email','e-mail') || null,
-    phone:           get(row,'telefone','phone','celular','whatsapp') || null,
-    source:          get(row,'origem','source','canal') || 'Importação',
-    status:          get(row,'status','etapa','stage') || 'Novo Lead',
-    owner:           get(row,'responsavel','responsável','owner') || 'Não atribuído',
-    potential_value: parseFloat(get(row,'valor','value','potential_value') || '0') || 0,
-    notes:           get(row,'observacoes','observações','notes','obs') || null,
+    name:            get(row,'nome','name','lead','nome completo','full_name') || '',
+    email:           get(row,'email','e-mail','mail','correo') || null,
+    phone:           get(row,'telefone','phone','celular','whatsapp','wa','cell','mobile','phoneNumber','phone_number') || null,
+    source:          get(row,'origem','source','canal','midia','utm_source') || 'Importação',
+    status:          get(row,'status','etapa','stage','fase','lead_status','funil') || 'Novo Lead',
+    owner:           get(row,'responsavel','responsável','owner','assigned_to') || 'Não atribuído',
+    potential_value: parseFloat(get(row,'valor','value','potential_value','price','orcamento','orçamento') || '0') || 0,
+    notes:           get(row,'observacoes','observações','notes','obs','description','comentario') || null,
   }
 }
 
@@ -94,6 +94,12 @@ export default function ImportarPage() {
     setLoading(true)
     let success = 0
     const errors: string[] = []
+    
+    // Busca as etapas atuais para normalização de status
+    const { data: stages } = await supabase.from('lead_stages').select('name').order('order')
+    const stageNames = stages?.map(s => s.name) || []
+    const defaultStage = stageNames[0] || 'Novo Lead'
+
     const BATCH = 50
     for (let i = 0; i < allRows.length; i += BATCH) {
       const batch = allRows.slice(i, i + BATCH)
@@ -104,7 +110,12 @@ export default function ImportarPage() {
         if (error) errors.push(`Linhas ${i+1}-${i+batch.length}: ${error.message}`)
         else success += records.length
       } else {
-        const records = batch.map(mapLead).filter(r => r.name)
+        const records = batch.map(mapLead).filter(r => r.name).map(r => {
+          // Normalização básica de status
+          const rawStatus = r.status
+          const matched = stageNames.find(s => s.toLowerCase() === rawStatus.toLowerCase())
+          return { ...r, status: matched || defaultStage }
+        })
         if (!records.length) continue
         const { error } = await supabase.from('leads').insert(records as any)
         if (error) errors.push(`Linhas ${i+1}-${i+batch.length}: ${error.message}`)
