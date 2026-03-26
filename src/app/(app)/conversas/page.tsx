@@ -347,8 +347,7 @@ function ConversasContent() {
       } else {
         const isPhysicalDuplicate = existing.messages.some(m => 
           m.message === msg.message && 
-          m.content === msg.content && 
-          Math.abs(new Date(m.sent_date).getTime() - new Date(msg.sent_date).getTime()) < 5000
+          Math.abs(new Date(m.sent_date).getTime() - new Date(msg.sent_date).getTime()) < 10000
         )
         if (!isPhysicalDuplicate && !existing.messages.some(m => m.id === msg.id)) {
           existing.messages.push(msg)
