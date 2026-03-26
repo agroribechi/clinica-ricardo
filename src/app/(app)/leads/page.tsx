@@ -130,8 +130,9 @@ export default function LeadsPage() {
     for (const lead of stageLeadsFiltered) {
       const success = await handleTriggerAutomation(lead, auto)
       if (success) count++
-      // Pequeno atraso para não sobrecarregar o navegador e evitar bloqueios
-      await new Promise(r => setTimeout(r, 1000))
+      // Intervalo customizável entre disparos (padrão 2s se não definido)
+      const waitTime = (auto.bulk_interval_seconds || 2) * 1000
+      await new Promise(r => setTimeout(r, waitTime))
     }
     alert(`${count} mensagens disparadas com sucesso!`)
   }
@@ -579,7 +580,8 @@ function AutomationModal({ stage, automation, leadsInStageCount, onClose, onSave
     delay_minutes: automation?.delay_minutes || 0,
     is_active: automation?.is_active || false,
     webhook_url: automation?.webhook_url || '',
-    waha_session: automation?.waha_session || 'default'
+    waha_session: automation?.waha_session || 'default',
+    bulk_interval_seconds: automation?.bulk_interval_seconds || 2
   })
   const [saving, setSaving] = useState(false)
 
@@ -608,11 +610,20 @@ function AutomationModal({ stage, automation, leadsInStageCount, onClose, onSave
 
           <div style={{ display:'flex', gap:'1rem' }}>
             <div style={{ flex:1 }}>
-              <label style={{ display:'block', fontSize:'11px', color:'#aaa', marginBottom:'0.4rem', textTransform:'uppercase' }}>Atraso (minutos)</label>
+              <label style={{ display:'block', fontSize:'11px', color:'#aaa', marginBottom:'0.4rem', textTransform:'uppercase' }}>Atraso Lead (minutos)</label>
               <input 
                 type="number"
                 value={data.delay_minutes}
                 onChange={e => setData({ ...data, delay_minutes: parseInt(e.target.value) || 0 })}
+                style={{ width:'100%', padding:'8px 12px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'8px', color:'#f5f0e8', fontSize:'13px', outline:'none' }}
+              />
+            </div>
+            <div style={{ flex:1 }}>
+              <label style={{ display:'block', fontSize:'11px', color:'#aaa', marginBottom:'0.4rem', textTransform:'uppercase' }}>Intervalo Massa (s)</label>
+              <input 
+                type="number"
+                value={data.bulk_interval_seconds}
+                onChange={e => setData({ ...data, bulk_interval_seconds: parseInt(e.target.value) || 0 })}
                 style={{ width:'100%', padding:'8px 12px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'8px', color:'#f5f0e8', fontSize:'13px', outline:'none' }}
               />
             </div>
@@ -625,7 +636,7 @@ function AutomationModal({ stage, automation, leadsInStageCount, onClose, onSave
                 style={{ width:'100%', padding:'8px 12px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'8px', color:'#f5f0e8', fontSize:'13px', outline:'none' }}
               />
             </div>
-            <div style={{ flex:1, display:'flex', flexDirection:'column', justifyContent:'center' }}>
+            <div style={{ flex:0.8, display:'flex', flexDirection:'column', justifyContent:'center' }}>
               <label style={{ display:'flex', alignItems:'center', gap:'8px', cursor:'pointer' }}>
                 <input 
                   type="checkbox"
@@ -633,7 +644,7 @@ function AutomationModal({ stage, automation, leadsInStageCount, onClose, onSave
                   onChange={e => setData({ ...data, is_active: e.target.checked })}
                   style={{ width:'16px', height:'16px', accentColor:'#c99318' }}
                 />
-                <span style={{ fontSize:'12px', color:'#f5f0e8' }}>Ativar Disparo</span>
+                <span style={{ fontSize:'12px', color:'#f5f0e8' }}>Ativar</span>
               </label>
             </div>
           </div>
