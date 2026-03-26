@@ -49,6 +49,14 @@ export default function LeadsPage() {
     setEditingStage(null)
   }
 
+  async function handleCycleColor(stage: LeadStage) {
+    const currentIdx = STAGE_COLORS.indexOf(stage.color)
+    const nextIdx = (currentIdx + 1) % STAGE_COLORS.length
+    const nextColor = STAGE_COLORS[nextIdx]
+    await supabase.from('lead_stages').update({ color: nextColor }).eq('id', stage.id)
+    setStages(p => p.map(s => s.id === stage.id ? { ...s, color: nextColor } : s))
+  }
+
   const load = useCallback(async () => {
     const [{ data: l }, { data: s }] = await Promise.all([
       supabase.from('leads').select('*').order('created_at', { ascending: false }),
@@ -208,7 +216,11 @@ export default function LeadsPage() {
                 {/* Cabeçalho da etapa */}
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 4px', gap:'4px' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:'7px', flex:1, minWidth:0 }}>
-                    <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:stage.color, flexShrink:0 }} />
+                    <div 
+                      onClick={() => handleCycleColor(stage)}
+                      title="Clique para mudar a cor"
+                      style={{ width:'11px', height:'11px', borderRadius:'50%', background:stage.color, flexShrink:0, cursor:'pointer', border:'1px solid rgba(255,255,255,0.1)' }} 
+                    />
                     {editingStage?.id === stage.id ? (
                       <input
                         value={editingStage.name}
@@ -242,10 +254,18 @@ export default function LeadsPage() {
                     const idx = stageIdx(lead.status)
                     return (
                       <div key={lead.id}
-                        style={{ background:'#141414', border:'1px solid rgba(255,255,255,0.06)', borderLeft:`2px solid ${stage.color}`, borderRadius:'8px', padding:'10px 10px 8px', cursor:'pointer', transition:'border-color .15s' }}
+                        style={{ background:'#141414', border:'1px solid rgba(255,255,255,0.06)', borderLeft:`3px solid ${stage.color}`, borderRadius:'8px', padding:'10px 10px 8px', cursor:'pointer', transition:'border-color .15s' }}
                         onClick={() => setSelected(lead)}
-                        onMouseEnter={e => (e.currentTarget.style.borderColor = `rgba(201,147,24,0.25)`)}
-                        onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)')}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.borderTopColor = 'rgba(201,147,24,0.3)'
+                          e.currentTarget.style.borderRightColor = 'rgba(201,147,24,0.3)'
+                          e.currentTarget.style.borderBottomColor = 'rgba(201,147,24,0.3)'
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.borderTopColor = 'rgba(255,255,255,0.06)'
+                          e.currentTarget.style.borderRightColor = 'rgba(255,255,255,0.06)'
+                          e.currentTarget.style.borderBottomColor = 'rgba(255,255,255,0.06)'
+                        }}
                       >
                         <div style={{ fontSize:'12px', fontWeight:500, color:'#d0c8bc', marginBottom:'3px', lineHeight:1.3 }}>{lead.name}</div>
                         {lead.phone && <div style={{ fontSize:'10px', color:'#888', fontFamily:'DM Mono, monospace' }}>{lead.phone}</div>}

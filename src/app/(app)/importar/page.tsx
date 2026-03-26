@@ -146,7 +146,12 @@ export default function ImportarPage() {
       
       if (missing.length > 0) {
         const lastOrder = stages?.length ? Math.max(...stages.map(s => s.order)) : -1
-        const newStages = missing.map((name, i) => ({ name, order: lastOrder + 1 + i, color: '#c99318' }))
+        const STAGE_COLORS = ['#888','#3b82f6','#f59e0b','#8b5cf6','#10b981','#ef4444','#ec4899','#06b6d4']
+        const newStages = missing.map((name, i) => ({
+          name,
+          color: STAGE_COLORS[(stageNames.length + i) % STAGE_COLORS.length],
+          order: stageNames.length + i,
+        }))
         console.log('Criando novas etapas:', newStages)
         const { error: stageError } = await supabase.from('lead_stages').insert(newStages)
         
