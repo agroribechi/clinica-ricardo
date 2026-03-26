@@ -300,7 +300,7 @@ function ConversasContent() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [stages, setStages] = useState<LeadStage[]>([])
   const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState<Conversation | null>(null)
+  const [selectedPhone, setSelectedPhone] = useState<string | null>(null)
   const [showPanel, setShowPanel] = useState(false)
   const [filter, setFilter] = useState<'all'|'unread'|'handoff'|'clientes'|'leads'|'novos'>('all')
   const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null)
@@ -347,7 +347,7 @@ function ConversasContent() {
       } else {
         const isPhysicalDuplicate = existing.messages.some(m => 
           m.message === msg.message && 
-          Math.abs(new Date(m.sent_date).getTime() - new Date(msg.sent_date).getTime()) < 10000
+          Math.abs(new Date(m.sent_date).getTime() - new Date(msg.sent_date).getTime()) < 15000
         )
         if (!isPhysicalDuplicate && !existing.messages.some(m => m.id === msg.id)) {
           existing.messages.push(msg)
@@ -391,6 +391,8 @@ function ConversasContent() {
     }
   }, [conversations, filter, clients, leads])
 
+  const selected = useMemo(() => conversations.find(c => c.phone === selectedPhone) || null, [conversations, selectedPhone])
+
   useEffect(() => {
     if (phoneFromUrl && conversations.length > 0) {
       const conv = conversations.find(c => c.phone === phoneFromUrl)
@@ -399,7 +401,7 @@ function ConversasContent() {
   }, [phoneFromUrl, conversations])
 
   async function selectConv(conv: Conversation) {
-    setSelected(conv)
+    setSelectedPhone(conv.phone)
     const unreadIds = conv.messages.filter(m => !m.is_read).map(m => m.id)
     if (unreadIds.length > 0) {
       await supabase.from('whatsapp_messages').update({ is_read: true }).in('id', unreadIds)
@@ -412,7 +414,7 @@ function ConversasContent() {
     const ids = deleteTarget.messages.map(m => m.id)
     await supabase.from('whatsapp_messages').delete().in('id', ids)
     setMessages(p => p.filter(m => !ids.includes(m.id)))
-    if (selected?.phone === deleteTarget.phone) { setSelected(null); setShowPanel(false) }
+    if (selectedPhone === deleteTarget.phone) { setSelectedPhone(null); setShowPanel(false) }
     setDeleteTarget(null)
   }
 
@@ -482,7 +484,7 @@ function ConversasContent() {
             </div>
           ) : filtered.map(conv => {
             const av = getAvatarStyle(conv)
-            const isSelected = selected?.phone === conv.phone
+            const isSelected = selectedPhone === conv.phone
             return (
               <div key={conv.phone}
                 onClick={() => { selectConv(conv); setShowPanel(true) }}
