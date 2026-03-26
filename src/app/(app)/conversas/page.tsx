@@ -345,7 +345,12 @@ function ConversasContent() {
           is_client: msg.is_client, handoff: msg.handoff,
         })
       } else {
-        if (!existing.messages.some(m => m.id === msg.id)) {
+        const isPhysicalDuplicate = existing.messages.some(m => 
+          m.message === msg.message && 
+          m.content === msg.content && 
+          Math.abs(new Date(m.sent_date).getTime() - new Date(msg.sent_date).getTime()) < 5000
+        )
+        if (!isPhysicalDuplicate && !existing.messages.some(m => m.id === msg.id)) {
           existing.messages.push(msg)
           if (new Date(msg.sent_date) > new Date(existing.last_message_at)) {
             existing.last_message_at = msg.sent_date
@@ -567,19 +572,21 @@ function ConversasContent() {
           <div style={{ flex:1, overflowY:'auto', padding:'1.25rem', display:'flex', flexDirection:'column', gap:'0.875rem' }}>
             {[...selected.messages].reverse().map(msg => (
               <div key={msg.id} style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-                {msg.content && (
+                {/* Mensagem do Cliente (agora em msg.message) */}
+                {msg.message && (
                   <div style={{ maxWidth:'72%', alignSelf:'flex-start' }}>
                     <div style={{ fontSize:'10px', color:'#7a7060', marginBottom:'3px', paddingLeft:'2px' }}>Cliente · {fmt(msg.sent_date)}</div>
                     <div style={{ padding:'0.625rem 0.875rem', background:'rgba(255,255,255,0.06)', borderRadius:'0 10px 10px 10px', fontSize:'13px', color:'#f0ebe0', lineHeight:1.5 }}>
-                      {msg.content}
+                      {msg.message}
                     </div>
                   </div>
                 )}
-                {msg.message && (
+                {/* Resposta da Bella (agora em msg.content) */}
+                {msg.content && (
                   <div style={{ maxWidth:'72%', alignSelf:'flex-end' }}>
                     <div style={{ fontSize:'10px', color:'#7d5213', marginBottom:'3px', paddingRight:'2px', textAlign:'right' }}>Bella · {fmt(msg.sent_date)}</div>
                     <div style={{ padding:'0.625rem 0.875rem', background:'rgba(201,147,24,0.08)', border:'1px solid rgba(201,147,24,0.12)', borderRadius:'10px 0 10px 10px', fontSize:'13px', color:'#f0ebe0', lineHeight:1.5 }}>
-                      {msg.message}
+                      {msg.content}
                     </div>
                   </div>
                 )}
