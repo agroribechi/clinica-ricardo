@@ -14,7 +14,13 @@ async function getClientes(search?: string) {
   )
   let q = supabase.from('clients').select('id, display_name, email, phone, join_date, tags').order('display_name')
   if (search) {
-    q = q.or(`display_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search.replace(/\D/g,'')}%`)
+    const filters = [
+      `display_name.ilike.%${search}%`,
+      `email.ilike.%${search}%`
+    ]
+    const digits = search.replace(/\D/g,'')
+    if (digits) filters.push(`phone.ilike.%${digits}%`)
+    q = q.or(filters.join(','))
   }
   const { data } = await q
   return data || []

@@ -1,26 +1,38 @@
 'use client'
-import { useRouter, usePathname } from 'next/navigation'
-import { useTransition } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
+import { useState, useEffect, useTransition } from 'react'
 import { Search } from 'lucide-react'
 
 export function ClientSearch({ defaultValue = '' }: { defaultValue?: string }) {
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const [query, setQuery] = useState(defaultValue)
   const [, startTransition] = useTransition()
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const current = searchParams.get('q') || ''
+      if (query === current) return
+      
+      startTransition(() => {
+        const params = new URLSearchParams(searchParams.toString())
+        if (query) params.set('q', query)
+        else params.delete('q')
+        
+        router.push(`${pathname}?${params.toString()}`)
+      })
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [query, pathname, router, searchParams])
 
   return (
     <div style={{ position: 'relative' }}>
       <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
       <input
-        defaultValue={defaultValue}
+        value={query}
         placeholder="Buscar clientes..."
-        onChange={e => {
-          const q = e.target.value
-          startTransition(() => {
-            if (q) router.push(`${pathname}?q=${encodeURIComponent(q)}`)
-            else router.push(pathname)
-          })
-        }}
+        onChange={e => setQuery(e.target.value)}
         style={{ paddingLeft: '30px', width: '220px' }}
         className="input-base"
       />
