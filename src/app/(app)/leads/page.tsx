@@ -130,6 +130,8 @@ export default function LeadsPage() {
     for (const lead of stageLeadsFiltered) {
       const success = await handleTriggerAutomation(lead, auto)
       if (success) count++
+      // Pequeno atraso para não sobrecarregar o navegador e evitar bloqueios
+      await new Promise(r => setTimeout(r, 1000))
     }
     alert(`${count} mensagens disparadas com sucesso!`)
   }
