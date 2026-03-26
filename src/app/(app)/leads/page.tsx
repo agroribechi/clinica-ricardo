@@ -104,6 +104,8 @@ export default function LeadsPage() {
           lead_id: lead.id,
           lead_name: lead.name,
           lead_phone: lead.phone,
+          chatId: (lead.phone || '').replace(/\D/g, ''),
+          text: auto.message_template.replace('@nome', lead.name),
           message: auto.message_template.replace('@nome', lead.name),
           delay_minutes: auto.delay_minutes,
           session: auto.waha_session || 'default'
