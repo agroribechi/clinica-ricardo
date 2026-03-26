@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { formatDate, formatCurrency, normalizePhone, formatPhone } from '@/lib/utils'
 import { ArrowLeft, Edit, MessageSquare, Phone, Mail, MapPin, FileText, Stethoscope } from 'lucide-react'
+import { ClientChatButton } from './ClientChatButton'
 
 async function getClient(id: string) {
   const cookieStore = await cookies()
@@ -46,9 +47,7 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
         </div>
         <div style={{ display:'flex', gap:'0.5rem' }}>
           {client.phone && (
-            <Link href={`/conversas?phone=${normalizePhone(client.phone)}`} className="btn-ghost" style={{ fontSize:'13px', padding:'0.4rem 0.875rem' }}>
-              <MessageSquare size={13} /> Conversa
-            </Link>
+            <ClientChatButton phone={client.phone} />
           )}
           <Link href={`/clientes/${id}/editar`} className="btn-primary" style={{ fontSize:'13px', padding:'0.4rem 0.875rem' }}>
             <Edit size={13} /> Editar

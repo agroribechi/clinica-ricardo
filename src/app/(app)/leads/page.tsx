@@ -3,7 +3,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import type { Lead, LeadStage } from '@/types/database'
-import { Plus, ChevronLeft, ChevronRight, Settings, X, Loader2, Trash2, Search, Zap, Play, Save } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Settings, X, Loader2, Trash2, Search, Zap, Play, Save, MessageSquare } from 'lucide-react'
+import { WhatsAppChatModal } from '@/components/WhatsAppChatModal'
 
 const STAGE_COLORS = ['#888','#3b82f6','#f59e0b','#8b5cf6','#10b981','#ef4444','#ec4899','#06b6d4']
 
@@ -23,6 +24,7 @@ export default function LeadsPage() {
   const [search, setSearch] = useState('')
   const [automations, setAutomations] = useState<any[]>([])
   const [showAutomation, setShowAutomation] = useState<LeadStage | null>(null)
+  const [showChatPhone, setShowChatPhone] = useState<string | null>(null)
 
   // Filtra leads pelo termo de busca (nome ou telefone)
   const searchTerm = search.trim().toLowerCase()
@@ -479,6 +481,15 @@ export default function LeadsPage() {
             </div>
           )}
 
+          {selected.phone && (
+            <button onClick={() => setShowChatPhone(selected.phone)}
+              style={{ marginTop:'1rem', width:'100%', padding:'10px', borderRadius:'8px', background:'rgba(37,211,102,0.1)', border:'1px solid rgba(37,211,102,0.3)', color:'#4ade80', fontSize:'13px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', fontWeight:500 }}>
+              <MessageSquare size={16} /> Abrir Histórico WhatsApp
+            </button>
+          )}
+
+          <div style={{ height:'1px', background:'rgba(255,255,255,0.04)', margin:'1.5rem 0' }} />
+
           <button onClick={() => handleDeleteLead(selected.id)}
             style={{ marginTop:'1.5rem', width:'100%', padding:'8px', borderRadius:'7px', background:'rgba(239,68,68,0.06)', border:'1px solid rgba(239,68,68,0.15)', color:'#f87171', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}>
             <Trash2 size={13} />Excluir Lead
@@ -572,6 +583,12 @@ export default function LeadsPage() {
             load()
             setShowAutomation(null)
           }}
+        />
+      )}
+      {showChatPhone && (
+        <WhatsAppChatModal 
+          phone={showChatPhone} 
+          onClose={() => setShowChatPhone(null)} 
         />
       )}
     </div>
