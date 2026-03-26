@@ -111,9 +111,23 @@ export default function LeadsPage() {
       // Update last triggered at
       await supabase.from('stage_automations').update({ last_triggered_at: new Date().toISOString() }).eq('id', auto.id)
       setAutomations(p => p.map(a => a.id === auto.id ? { ...a, last_triggered_at: new Date().toISOString() } : a))
+      return true
     } catch (e) {
       console.error('Failed to trigger n8n:', e)
+      return false
     }
+  }
+
+  async function handleBulkSend(stageName: string, auto: any) {
+    const stageLeadsFiltered = stageLeads(stageName)
+    if (stageLeadsFiltered.length === 0) return alert('Nenhum lead nesta etapa para disparar.')
+    
+    let count = 0
+    for (const lead of stageLeadsFiltered) {
+      const success = await handleTriggerAutomation(lead, auto)
+      if (success) count++
+    }
+    alert(`${count} mensagens disparadas com sucesso!`)
   }
 
   async function handleDeleteLead(id: string) {
@@ -516,7 +530,17 @@ export default function LeadsPage() {
         <AutomationModal 
           stage={showAutomation} 
           automation={automations.find(a => a.stage_id === showAutomation.id)}
+          leadsInStageCount={stageLeads(showAutomation.name).length}
           onClose={() => setShowAutomation(null)}
+          onTest={async (data) => {
+            const mockLead = stageLeads(showAutomation.name)[0] || { name: 'Lead de Teste', phone: '5500999999999', id: 'test', status: showAutomation.name } as Lead
+            const success = await handleTriggerAutomation(mockLead, { ...data, id: automations.find(a => a.stage_id === showAutomation.id)?.id || 'test' })
+            if (success) alert('Disparo de teste enviado! Verifique o n8n.')
+            else alert('Erro ao disparar teste. Verifique o console e o console do n8n (CORS).')
+          }}
+          onBulkSend={async (data) => {
+            await handleBulkSend(showAutomation.name, data)
+          }}
           onSave={async (data) => {
             const existing = automations.find(a => a.stage_id === showAutomation.id)
             if (existing) {
@@ -533,7 +557,15 @@ export default function LeadsPage() {
   )
 }
 
-function AutomationModal({ stage, automation, onClose, onSave }: { stage: LeadStage; automation: any; onClose: () => void; onSave: (data: any) => void }) {
+function AutomationModal({ stage, automation, leadsInStageCount, onClose, onSave, onTest, onBulkSend }: { 
+  stage: LeadStage; 
+  automation: any; 
+  leadsInStageCount: number;
+  onClose: () => void; 
+  onSave: (data: any) => void;
+  onTest: (data: any) => void;
+  onBulkSend: (data: any) => void;
+}) {
   const [data, setData] = useState({
     message_template: automation?.message_template || '',
     delay_minutes: automation?.delay_minutes || 0,
@@ -607,16 +639,20 @@ function AutomationModal({ stage, automation, onClose, onSave }: { stage: LeadSt
           <div style={{ height:'1px', background:'rgba(255,255,255,0.05)', margin:'0.5rem 0' }} />
 
           <div>
-            <button 
-              onClick={() => {
-                if (confirm(`Deseja enviar a mensagem agora para todos os leads nesta etapa?`)) {
-                  alert('Disparo em massa iniciado! Verifique o n8n para progresso.')
-                }
-              }}
-              style={{ width:'100%', padding:'10px', background:'rgba(201,147,24,0.1)', border:'1px solid rgba(201,147,24,0.3)', borderRadius:'8px', color:'#e4b530', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}
-            >
-              <Play size={13} fill="currentColor" /> Enviar para todos desta etapa agora
-            </button>
+            <div style={{ display:'flex', gap:'0.5rem', marginBottom:'0.5rem' }}>
+              <button 
+                onClick={() => onTest(data)}
+                style={{ flex:1, padding:'10px', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'8px', color:'#f5f0e8', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}
+              >
+                <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'#4ade80' }} /> Testar para 1 lead
+              </button>
+              <button 
+                onClick={() => onBulkSend(data)}
+                style={{ flex:2, padding:'10px', background:'rgba(201,147,24,0.1)', border:'1px solid rgba(201,147,24,0.3)', borderRadius:'8px', color:'#e4b530', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}
+              >
+                <Play size={13} fill="currentColor" /> Disparar para todos ({leadsInStageCount})
+              </button>
+            </div>
             <button 
               disabled
               style={{ width:'100%', padding:'6px', background:'none', border:'none', color:'#444', fontSize:'10px', cursor:'not-allowed', marginTop:'4px', textDecoration:'underline' }}
