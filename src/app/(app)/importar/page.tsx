@@ -119,6 +119,7 @@ export default function ImportarPage() {
   async function handleImport() {
     setLoading(true)
     let success = 0
+    let skipped = 0
     const errors: string[] = []
     
     // Busca as etapas atuais para normalização de status
@@ -126,31 +127,43 @@ export default function ImportarPage() {
     const stageNames = stages?.map(s => s.name) || []
     const defaultStage = stageNames[0] || 'Novo Lead'
 
+    // Busca contatos existentes para evitar duplicados (por telefone ou e-mail)
+    const table = type === 'clientes' ? 'clients' : 'leads'
+    const { data: existing } = await supabase.from(table).select('phone, email')
+    const existingPhones = new Set(existing?.map(e => e.phone?.replace(/\D/g, '')).filter(Boolean))
+    const existingEmails = new Set(existing?.map(e => e.email?.toLowerCase().trim()).filter(Boolean))
+
     const BATCH = 50
     for (let i = 0; i < allRows.length; i += BATCH) {
       const batch = allRows.slice(i, i + BATCH)
-      if (type === 'clientes') {
-        const records = batch.map(mapCliente).filter(r => r.display_name)
-        if (!records.length) continue
-        const { error } = await supabase.from('clients').insert(records as any)
-        if (error) errors.push(`Linhas ${i+1}-${i+batch.length}: ${error.message}`)
-        else success += records.length
-      } else {
-        const records = batch.map(mapLead).filter(r => r.name).map(r => {
-          // Normalização básica de status
-          const rawStatus = r.status
-          const matched = stageNames.find(s => s.toLowerCase() === rawStatus.toLowerCase())
-          return { ...r, status: matched || defaultStage }
-        })
-        if (!records.length) continue
-        const { error } = await supabase.from('leads').insert(records as any)
-        if (error) errors.push(`Linhas ${i+1}-${i+batch.length}: ${error.message}`)
-        else success += records.length
-      }
+      let records: any[] = type === 'clientes' 
+        ? batch.map(mapCliente).filter(r => r.display_name)
+        : batch.map(mapLead).filter(r => r.name).map(r => {
+            const rawStatus = r.status
+            const matched = stageNames.find(s => s.toLowerCase() === rawStatus.toLowerCase())
+            return { ...r, status: matched || defaultStage }
+          })
+
+      // Filtra duplicados
+      const initialCount = records.length
+      records = records.filter(r => {
+        const p = r.phone?.replace(/\D/g, '')
+        const e = r.email?.toLowerCase().trim()
+        const isDuplicate = (p && existingPhones.has(p)) || (e && existingEmails.has(e))
+        return !isDuplicate
+      })
+      skipped += (initialCount - records.length)
+
+      if (!records.length) continue
+      
+      const { error } = await supabase.from(table).insert(records as any)
+      if (error) errors.push(`Linhas ${i+1}-${i+batch.length}: ${error.message}`)
+      else success += records.length
     }
     setResult({ success, errors })
     setLoading(false)
     setStep('done')
+    if (skipped > 0) console.log(`[Import] Pulados ${skipped} registros já existentes.`)
   }
 
   function reset() {
