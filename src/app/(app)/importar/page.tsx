@@ -140,16 +140,24 @@ export default function ImportarPage() {
     // Cria etapas faltantes se for importação de leads
     if (type === 'leads') {
       const csvStages = Array.from(new Set(allRows.map(mapLead).map(r => r.status).filter(Boolean)))
-      const missing = csvStages.filter(cs => !stageNames.some(sn => sn.toLowerCase() === cs.toLowerCase()))
+      console.log('Statuses encontrados no CSV:', csvStages)
+      const missing = csvStages.filter(cs => !stageNames.some(sn => sn.toLowerCase().trim() === cs.toLowerCase().trim()))
+      console.log('Etapas faltantes:', missing)
       
       if (missing.length > 0) {
         const lastOrder = stages?.length ? Math.max(...stages.map(s => s.order)) : -1
         const newStages = missing.map((name, i) => ({ name, order: lastOrder + 1 + i, color: '#c99318' }))
+        console.log('Criando novas etapas:', newStages)
         const { error: stageError } = await supabase.from('lead_stages').insert(newStages)
+        
         if (!stageError) {
           const { data: updatedStages } = await supabase.from('lead_stages').select('name').order('order')
           stageNames = updatedStages?.map(s => s.name) || []
+          console.log('Etapas atualizadas no banco:', stageNames)
+          alert(`Sucesso: ${newStages.length} novas etapas criadas: ${missing.join(', ')}`)
         } else {
+          console.error('Erro ao criar etapas:', stageError)
+          alert(`Erro ao criar etapas: ${stageError.message}`)
           errors.push(`Erro ao criar etapas: ${stageError.message}`)
         }
       }
@@ -161,10 +169,10 @@ export default function ImportarPage() {
       let records: any[] = type === 'clientes' 
         ? batch.map(mapCliente).filter(r => r.display_name)
         : batch.map(mapLead).filter(r => r.name).map(r => {
-            const rawStatus = r.status
-            const matched = stageNames.find(s => s.toLowerCase() === rawStatus.toLowerCase())
-            return { ...r, status: matched || defaultStage }
-          })
+             const rawStatus = r.status
+             const matched = stageNames.find(s => s.toLowerCase().trim() === rawStatus.toLowerCase().trim())
+             return { ...r, status: matched || defaultStage }
+           })
 
       // Filtra duplicados
       const initialCount = records.length
