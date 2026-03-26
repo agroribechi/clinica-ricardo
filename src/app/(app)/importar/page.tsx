@@ -10,13 +10,39 @@ type ImportResult = { success: number; errors: string[] }
 function parseCSV(text: string): Row[] {
   const lines = text.split(/\r?\n/).filter(l => l.trim())
   if (lines.length < 2) return []
-  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim())
-  return lines.slice(1).map(line => {
-    const values = line.split(',').map(v => v.replace(/^"|"$/g, '').trim())
+
+  // Detecta delimitador: conta vírgulas vs ponto-e-vírgula na primeira linha
+  const firstLine = lines[0]
+  const commaCount = (firstLine.match(/,/g) || []).length
+  const semiCount = (firstLine.match(/;/g) || []).length
+  const delimiter = semiCount > commaCount ? ';' : ','
+
+  // Parser robusto que lida com aspas, vírgulas internas e o delimitador detectado
+  const parseLine = (line: string) => {
+    const result = []
+    let cur = '', inQuote = false
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i], next = line[i+1]
+      // Lida com aspas duplas escapadas ("")
+      if (char === '"' && inQuote && next === '"') { cur += '"'; i++ }
+      else if (char === '"') { inQuote = !inQuote }
+      else if (char === delimiter && !inQuote) { result.push(cur.trim()); cur = '' }
+      else { cur += char }
+    }
+    result.push(cur.trim())
+    return result.map(v => v.replace(/^"|"$/g, '').trim())
+  }
+
+  const headers = parseLine(lines[0])
+  const data = lines.slice(1).map(line => {
+    const values = parseLine(line)
     const row: Row = {}
     headers.forEach((h, i) => { row[h] = values[i] || '' })
     return row
   })
+  
+  console.log(`[CSV Import] Parsed ${data.length} rows using delimiter "${delimiter}"`)
+  return data
 }
 
 function get(row: Row, ...keys: string[]): string | null {
