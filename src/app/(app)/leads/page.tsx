@@ -96,7 +96,7 @@ export default function LeadsPage() {
     // If webhook_url is provided, hit it. Otherwise mock or use default.
     const url = auto.webhook_url || 'https://n8n.seuservidor.com/webhook/crm-trigger'
     try {
-      await fetch(url, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -111,6 +111,18 @@ export default function LeadsPage() {
           session: auto.waha_session || 'default'
         })
       })
+      
+      // Registrar log no banco de dados para histórico
+      if (auto.id) {
+        await supabase.from('automation_logs').insert({
+          automation_id: auto.id,
+          lead_name: lead.name,
+          lead_phone: lead.phone,
+          status: response.ok ? 'success' : 'error',
+          error_message: response.ok ? null : `HTTP ${response.status}: ${response.statusText}`
+        })
+      }
+
       console.log('n8n Trigger Success:', { lead: lead.name, phone: lead.phone })
       // Update last triggered at
       await supabase.from('stage_automations').update({ last_triggered_at: new Date().toISOString() }).eq('id', auto.id)
@@ -584,6 +596,7 @@ function AutomationModal({ stage, automation, leadsInStageCount, onClose, onSave
     bulk_interval_seconds: automation?.bulk_interval_seconds || 2
   })
   const [saving, setSaving] = useState(false)
+  const [showLogs, setShowLogs] = useState(false)
 
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:70, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -606,6 +619,18 @@ function AutomationModal({ stage, automation, leadsInStageCount, onClose, onSave
               style={{ width:'100%', minHeight:'100px', padding:'10px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'8px', color:'#f5f0e8', fontSize:'13px', outline:'none', resize:'vertical', fontFamily:'var(--font-body)' }}
             />
             <div style={{ fontSize:'10px', color:'#666', marginTop:'4px' }}>Use @nome para personalizar com o nome do lead.</div>
+          </div>
+
+          <div style={{ display:'flex', gap:'1rem', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ fontSize:'12px', color:'#c99318', cursor:'pointer', textDecoration:'underline' }} onClick={() => setShowLogs(true)}>
+              Ver Histórico de Envios
+            </div>
+          </div>
+
+          <div style={{ display:'flex', gap:'1rem', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ fontSize:'12px', color:'#c99318', cursor:'pointer', textDecoration:'underline' }} onClick={() => setShowLogs(true)}>
+              Ver Histórico de Envios
+            </div>
           </div>
 
           <div style={{ display:'flex', gap:'1rem' }}>
@@ -706,6 +731,74 @@ function AutomationModal({ stage, automation, leadsInStageCount, onClose, onSave
             </button>
           </div>
         </div>
+      </div>
+      {showLogs && (
+        <LogsModal 
+          automationId={automation?.id} 
+          onClose={() => setShowLogs(false)} 
+        />
+      )}
+    </div>
+  )
+}
+
+function LogsModal({ automationId, onClose }: { automationId: string; onClose: () => void }) {
+  const [logs, setLogs] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadLogs() {
+      if (!automationId) {
+        setLoading(false)
+        return
+      }
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('automation_logs')
+        .select('*')
+        .eq('automation_id', automationId)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      
+      setLogs(data || [])
+      setLoading(false)
+    }
+    loadLogs()
+  }, [automationId])
+
+  return (
+    <div style={{ position:'absolute', inset:0, background:'#141414', borderRadius:'12px', zIndex:80, display:'flex', flexDirection:'column' }}>
+      <div style={{ padding:'1.25rem', borderBottom:'1px solid rgba(255,255,255,0.05)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <h3 style={{ fontSize:'14px', color:'#f5f0e8', fontWeight:400 }}>Histórico de Envios</h3>
+        <button onClick={onClose} style={{ background:'none', border:'none', color:'#888', cursor:'pointer' }}><X size={18} /></button>
+      </div>
+
+      <div style={{ flex:1, overflowY:'auto', padding:'1rem' }}>
+        {loading ? (
+          <div style={{ color:'#666', fontSize:'12px', textAlign:'center', marginTop:'2rem' }}>Carregando...</div>
+        ) : logs.length === 0 ? (
+          <div style={{ color:'#666', fontSize:'12px', textAlign:'center', marginTop:'2rem' }}>Nenhum envio registrado.</div>
+        ) : (
+          <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
+            {logs.map(log => (
+              <div key={log.id} style={{ padding:'0.75rem', background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'8px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div>
+                  <div style={{ fontSize:'13px', color:'#f5f0e8' }}>{log.lead_name}</div>
+                  <div style={{ fontSize:'10px', color:'#666' }}>{new Date(log.created_at).toLocaleString('pt-BR')}</div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontSize:'10px', color: log.status === 'success' ? '#4ade80' : '#f87171', textTransform:'uppercase' }}>
+                    {log.status === 'success' ? 'Enviado' : 'Erro'}
+                  </div>
+                  {log.error_message && <div style={{ fontSize:'9px', color:'#666', maxWidth:'120px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{log.error_message}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={{ padding:'1rem', borderTop:'1px solid rgba(255,255,255,0.05)', textAlign:'center' }}>
+        <div style={{ fontSize:'10px', color:'#444' }}>Exibindo os últimos 50 registros.</div>
       </div>
     </div>
   )
