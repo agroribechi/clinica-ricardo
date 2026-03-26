@@ -111,6 +111,7 @@ export default function LeadsPage() {
           session: auto.waha_session || 'default'
         })
       })
+      console.log('n8n Trigger Success:', { lead: lead.name, phone: lead.phone })
       // Update last triggered at
       await supabase.from('stage_automations').update({ last_triggered_at: new Date().toISOString() }).eq('id', auto.id)
       setAutomations(p => p.map(a => a.id === auto.id ? { ...a, last_triggered_at: new Date().toISOString() } : a))
@@ -537,6 +538,8 @@ export default function LeadsPage() {
           onClose={() => setShowAutomation(null)}
           onTest={async (data) => {
             const mockLead = stageLeads(showAutomation.name)[0] || { name: 'Lead de Teste', phone: '5500999999999', id: 'test', status: showAutomation.name } as Lead
+            const lp = (mockLead.phone || '').replace(/\D/g, '')
+            if (!confirm(`Confirmar teste?\nNome: ${mockLead.name}\nWhatsApp: ${mockLead.phone}\n\nEnviando chatId = ${lp}`)) return
             const success = await handleTriggerAutomation(mockLead, { ...data, id: automations.find(a => a.stage_id === showAutomation.id)?.id || 'test' })
             if (success) alert('Disparo de teste enviado! Verifique o n8n.')
             else alert('Erro ao disparar teste. Verifique o console e o console do n8n (CORS).')
