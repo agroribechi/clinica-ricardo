@@ -279,7 +279,7 @@ export default function ImportarPage() {
                 )
               })}
             </div>
-            {!headers.some(h => ['status','etapa','stage','fase','lead_status','funil','leadstage','state','pipeline','funil_posicao','segmentation','status(funil)'].includes(h.toLowerCase().trim())) && type === 'leads' && (
+            {!headers.some(h => ['status','etapa','stage','fase','lead_status','funil','leadstage','state','pipeline','funil_posicao','segmentation','status(funil)'].includes(h.toLowerCase().replace(/\s+/g, '').trim())) && type === 'leads' && (
               <div style={{ marginTop:'8px', color:'#f87171', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px' }}>
                 <AlertTriangle size={12} /> Nenhuma coluna de "Status/Etapa" detectada. Os leads serão criados como "Novo Lead".
               </div>
