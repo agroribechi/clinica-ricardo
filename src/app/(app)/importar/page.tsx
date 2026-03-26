@@ -71,7 +71,7 @@ function mapLead(row: Row) {
     email:           get(row,'email','e-mail','mail','correo') || null,
     phone:           get(row,'telefone','phone','celular','whatsapp','wa','cell','mobile','phoneNumber','phone_number') || null,
     source:          get(row,'origem','source','canal','midia','utm_source') || 'Importação',
-    status:          get(row,'status','etapa','stage','fase','lead_status','funil','leadstage','state','pipeline','funil_posicao','segmentation') || 'Novo Lead',
+    status:          get(row,'status','etapa','stage','fase','lead_status','funil','leadstage','state','pipeline','funil_posicao','segmentation','status(funil)') || 'Novo Lead',
     owner:           get(row,'responsavel','responsável','owner','assigned_to') || 'Não atribuído',
     potential_value: parseFloat(get(row,'valor','value','potential_value','price','orcamento','orçamento') || '0') || 0,
     notes:           get(row,'observacoes','observações','notes','obs','description','comentario') || null,
@@ -258,7 +258,7 @@ export default function ImportarPage() {
                 const hl = h.toLowerCase().trim()
                 const isMapped = type === 'clientes' 
                   ? ['nome','name','display_name','cliente','nome completo','full_name','username','user_name','email','e-mail','mail','correo','telefone','phone','fone','celular','whatsapp','wa','cell','mobile','phonenumber','phone_number','cpf','document','documento','nascimento','dob','data de nascimento','birth','birthday','endereco','endereço','address','location','observacoes','observações','notes','obs','description','comentario'].includes(hl)
-                  : ['nome','name','lead','nome completo','full_name','email','e-mail','mail','correo','telefone','phone','celular','whatsapp','wa','cell','mobile','phonenumber','phone_number','origem','source','canal','midia','utm_source','status','etapa','stage','fase','lead_status','funil','leadstage','state','pipeline','funil_posicao','segmentation','valor','value','potential_value','price','orcamento','orçamento','observacoes','observações','notes','obs','description','comentario'].includes(hl)
+                  : ['nome','name','lead','nome completo','full_name','email','e-mail','mail','correo','telefone','phone','celular','whatsapp','wa','cell','mobile','phonenumber','phone_number','origem','source','canal','midia','utm_source','status','etapa','stage','fase','lead_status','funil','leadstage','state','pipeline','funil_posicao','segmentation','status(funil)','valor','value','potential_value','price','orcamento','orçamento','observacoes','observações','notes','obs','description','comentario'].includes(hl)
                 return (
                   <span key={h} title={isMapped ? 'Coluna mapeada' : 'Coluna ignorada'} 
                     style={{ color: isMapped ? '#34d399' : '#7a7060', background: isMapped ? 'rgba(52,211,153,0.08)' : 'rgba(255,255,255,0.03)', padding:'2px 8px', borderRadius:'4px', border: isMapped ? '1px solid rgba(52,211,153,0.2)' : '1px solid rgba(255,255,255,0.05)', fontSize:'11px' }}>
@@ -267,7 +267,7 @@ export default function ImportarPage() {
                 )
               })}
             </div>
-            {!headers.some(h => ['status','etapa','stage','fase','lead_status','funil','leadstage','state','pipeline','funil_posicao','segmentation'].includes(h.toLowerCase().trim())) && type === 'leads' && (
+            {!headers.some(h => ['status','etapa','stage','fase','lead_status','funil','leadstage','state','pipeline','funil_posicao','segmentation','status(funil)'].includes(h.toLowerCase().trim())) && type === 'leads' && (
               <div style={{ marginTop:'8px', color:'#f87171', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px' }}>
                 <AlertTriangle size={12} /> Nenhuma coluna de "Status/Etapa" detectada. Os leads serão criados como "Novo Lead".
               </div>
