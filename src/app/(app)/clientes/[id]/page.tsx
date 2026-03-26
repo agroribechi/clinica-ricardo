@@ -62,11 +62,11 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
           <div className="card" style={{ padding:'1.25rem' }}>
             <div style={{ fontSize:'11px', letterSpacing:'0.06em', textTransform:'uppercase', color:'var(--text-muted)', marginBottom:'1rem' }}>Informações</div>
             {[
-              { icon: Mail, label: client.email || '—' },
-              { icon: Phone, label: client.phone ? formatPhone(client.phone) : '—' },
-              { icon: MapPin, label: client.address || '—' },
-            ].map(({ icon: Icon, label }) => (
-              <div key={label} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'0.5rem 0', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+              { id: 'email', icon: Mail, label: client.email || '—' },
+              { id: 'phone', icon: Phone, label: client.phone ? formatPhone(client.phone) : '—' },
+              { id: 'address', icon: MapPin, label: client.address || '—' },
+            ].map(({ id: key, icon: Icon, label }) => (
+              <div key={key} style={{ display:'flex', alignItems:'center', gap:'10px', padding:'0.5rem 0', borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
                 <Icon size={13} style={{ color:'var(--text-muted)', flexShrink:0 }} />
                 <span style={{ fontSize:'13px', color:'var(--text-secondary)' }}>{label}</span>
               </div>
