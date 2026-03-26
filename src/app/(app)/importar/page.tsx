@@ -47,7 +47,11 @@ function parseCSV(text: string): Row[] {
 
 function get(row: Row, ...keys: string[]): string | null {
   for (const k of keys) {
-    const found = Object.keys(row).find(rk => rk.toLowerCase().trim() === k.toLowerCase())
+    const found = Object.keys(row).find(rk => {
+      const rkl = rk.toLowerCase().replace(/\s+/g, '').trim()
+      const kl = k.toLowerCase().replace(/\s+/g, '').trim()
+      return rkl === kl
+    })
     if (found && row[found]?.trim()) return row[found].trim()
   }
   return null
@@ -255,10 +259,10 @@ export default function ImportarPage() {
             <strong style={{ color:'var(--gold)', display:'block', marginBottom:'6px', fontSize:'11px', textTransform:'uppercase' }}>Colunas detectadas no arquivo</strong>
             <div style={{ display:'flex', flexWrap:'wrap', gap:'6px' }}>
               {headers.map(h => {
-                const hl = h.toLowerCase().trim()
+                const hl = h.toLowerCase().replace(/\s+/g, '').trim()
                 const isMapped = type === 'clientes' 
-                  ? ['nome','name','display_name','cliente','nome completo','full_name','username','user_name','email','e-mail','mail','correo','telefone','phone','fone','celular','whatsapp','wa','cell','mobile','phonenumber','phone_number','cpf','document','documento','nascimento','dob','data de nascimento','birth','birthday','endereco','endereço','address','location','observacoes','observações','notes','obs','description','comentario'].includes(hl)
-                  : ['nome','name','lead','nome completo','full_name','email','e-mail','mail','correo','telefone','phone','celular','whatsapp','wa','cell','mobile','phonenumber','phone_number','origem','source','canal','midia','utm_source','status','etapa','stage','fase','lead_status','funil','leadstage','state','pipeline','funil_posicao','segmentation','status(funil)','valor','value','potential_value','price','orcamento','orçamento','observacoes','observações','notes','obs','description','comentario'].includes(hl)
+                  ? ['nome','name','display_name','cliente','nomecompleto','fullname','username','user_name','email','e-mail','mail','correo','telefone','phone','fone','celular','whatsapp','wa','cell','mobile','phonenumber','phone_number','cpf','document','documento','nascimento','dob','datadenascimento','birth','birthday','endereco','endereço','address','location', 'observacoes','observações','notes','obs','description','comentario'].includes(hl)
+                  : ['nome','name','lead','nomecompleto','fullname','email','e-mail','mail','correo','telefone','phone','celular','whatsapp','wa','cell','mobile','phonenumber','phone_number','origem','source','canal','midia','utm_source','status','etapa','stage','fase','lead_status','funil','leadstage','state','pipeline','funil_posicao','segmentation','status(funil)','valor','value','potential_value','price','orcamento','orçamento','observacoes','observações','notes','obs','description','comentario'].includes(hl)
                 return (
                   <span key={h} title={isMapped ? 'Coluna mapeada' : 'Coluna ignorada'} 
                     style={{ color: isMapped ? '#34d399' : '#7a7060', background: isMapped ? 'rgba(52,211,153,0.08)' : 'rgba(255,255,255,0.03)', padding:'2px 8px', borderRadius:'4px', border: isMapped ? '1px solid rgba(52,211,153,0.2)' : '1px solid rgba(255,255,255,0.05)', fontSize:'11px' }}>
