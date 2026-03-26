@@ -105,7 +105,8 @@ export default function LeadsPage() {
           lead_name: lead.name,
           lead_phone: lead.phone,
           message: auto.message_template.replace('@nome', lead.name),
-          delay_minutes: auto.delay_minutes
+          delay_minutes: auto.delay_minutes,
+          session: auto.waha_session || 'default'
         })
       })
       // Update last triggered at
@@ -570,7 +571,8 @@ function AutomationModal({ stage, automation, leadsInStageCount, onClose, onSave
     message_template: automation?.message_template || '',
     delay_minutes: automation?.delay_minutes || 0,
     is_active: automation?.is_active || false,
-    webhook_url: automation?.webhook_url || ''
+    webhook_url: automation?.webhook_url || '',
+    waha_session: automation?.waha_session || 'default'
   })
   const [saving, setSaving] = useState(false)
 
@@ -604,6 +606,15 @@ function AutomationModal({ stage, automation, leadsInStageCount, onClose, onSave
                 type="number"
                 value={data.delay_minutes}
                 onChange={e => setData({ ...data, delay_minutes: parseInt(e.target.value) || 0 })}
+                style={{ width:'100%', padding:'8px 12px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'8px', color:'#f5f0e8', fontSize:'13px', outline:'none' }}
+              />
+            </div>
+            <div style={{ flex:1 }}>
+              <label style={{ display:'block', fontSize:'11px', color:'#aaa', marginBottom:'0.4rem', textTransform:'uppercase' }}>Sessão WAHA</label>
+              <input 
+                value={data.waha_session}
+                onChange={e => setData({ ...data, waha_session: e.target.value })}
+                placeholder="default"
                 style={{ width:'100%', padding:'8px 12px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'8px', color:'#f5f0e8', fontSize:'13px', outline:'none' }}
               />
             </div>
