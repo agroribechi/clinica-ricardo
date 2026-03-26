@@ -16,7 +16,7 @@ async function getClientes(search?: string) {
   if (search) {
     q = q.or(`display_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search.replace(/\D/g,'')}%`)
   }
-  const { data } = await q.limit(100)
+  const { data } = await q
   return data || []
 }
 
