@@ -418,9 +418,16 @@ export default function LeadsPage() {
       {selected && (
         <div style={{ position:'fixed', right:0, top:0, bottom:0, width:'300px', background:'#141414', borderLeft:'1px solid rgba(201,147,24,0.15)', padding:'1.5rem', zIndex:40, overflowY:'auto' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.25rem' }}>
-            <h2 style={{ fontFamily:'Cormorant Garamond, serif', fontSize:'1.4rem', fontWeight:300, color:'#f5f0e8', lineHeight:1.2 }}>{selected.name}</h2>
+          <h2 style={{ fontFamily:'Cormorant Garamond, serif', fontSize:'1.4rem', fontWeight:300, color:'#f5f0e8', lineHeight:1.2 }}>{selected.name}</h2>
             <button onClick={() => setSelected(null)} style={{ background:'none', border:'none', color:'#888', cursor:'pointer', fontSize:'20px', lineHeight:1 }}>×</button>
           </div>
+
+          {selected.phone && (
+            <button onClick={() => setShowChatPhone(selected.phone)}
+              style={{ marginBottom:'1.5rem', width:'100%', padding:'10px', borderRadius:'8px', background:'rgba(37,211,102,0.1)', border:'1px solid rgba(37,211,102,0.3)', color:'#4ade80', fontSize:'13px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', fontWeight:500 }}>
+              <MessageSquare size={16} /> Abrir Histórico WhatsApp
+            </button>
+          )}
 
           {/* Etapa atual */}
           <div style={{ marginBottom:'1.25rem' }}>
@@ -479,13 +486,6 @@ export default function LeadsPage() {
               <div style={{ fontSize:'12px', letterSpacing:'.06em', textTransform:'uppercase', color:'#888', marginBottom:'6px' }}>Notas</div>
               <p style={{ fontSize:'12px', color:'#aaa', lineHeight:1.6 }}>{selected.notes}</p>
             </div>
-          )}
-
-          {selected.phone && (
-            <button onClick={() => setShowChatPhone(selected.phone)}
-              style={{ marginTop:'1rem', width:'100%', padding:'10px', borderRadius:'8px', background:'rgba(37,211,102,0.1)', border:'1px solid rgba(37,211,102,0.3)', color:'#4ade80', fontSize:'13px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', fontWeight:500 }}>
-              <MessageSquare size={16} /> Abrir Histórico WhatsApp
-            </button>
           )}
 
           <div style={{ height:'1px', background:'rgba(255,255,255,0.04)', margin:'1.5rem 0' }} />

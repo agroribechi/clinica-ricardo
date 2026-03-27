@@ -16,6 +16,11 @@ export function WhatsAppChatModal({ phone, onClose }: WhatsAppChatModalProps) {
   useEffect(() => {
     async function loadChat() {
       const p = (phone || '').replace(/\D/g, '')
+      if (!p) {
+        setMessages([])
+        setLoading(false)
+        return
+      }
       const { data } = await supabase
         .from('whatsapp_messages')
         .select('*')
@@ -77,7 +82,10 @@ export function WhatsAppChatModal({ phone, onClose }: WhatsAppChatModalProps) {
                   }}>
                     <div style={{ fontSize:'13px', lineHeight:1.5, whiteSpace:'pre-wrap' }}>{msg.content || msg.message}</div>
                     <div style={{ fontSize:'9px', color:'#555', marginTop:'4px', textAlign:'right' }}>
-                      {new Date(msg.sent_date).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}
+                      {(() => {
+                        const d = new Date(msg.sent_date)
+                        return isNaN(d.getTime()) ? '' : d.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })
+                      })()}
                     </div>
                   </div>
                 </div>
