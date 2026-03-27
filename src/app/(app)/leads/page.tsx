@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatDate, formatCurrency } from '@/lib/utils'
+import { formatDate, formatCurrency, formatRelative } from '@/lib/utils'
 import type { Lead, LeadStage } from '@/types/database'
 import { Plus, ChevronLeft, ChevronRight, Settings, X, Loader2, Trash2, Search, Zap, Play, Save, MessageSquare } from 'lucide-react'
 import { WhatsAppChatModal } from '@/components/WhatsAppChatModal'
@@ -25,6 +25,9 @@ export default function LeadsPage() {
   const [automations, setAutomations] = useState<any[]>([])
   const [showAutomation, setShowAutomation] = useState<LeadStage | null>(null)
   const [showChatPhone, setShowChatPhone] = useState<string | null>(null)
+  const [leadNotes, setLeadNotes] = useState<any[]>([])
+  const [newNote, setNewNote] = useState('')
+  const [loadingNotes, setLoadingNotes] = useState(false)
 
   // Filtra leads pelo termo de busca (nome ou telefone)
   const searchTerm = search.trim().toLowerCase()
@@ -74,6 +77,39 @@ export default function LeadsPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  const fetchNotes = useCallback(async (leadId: string) => {
+    setLoadingNotes(true)
+    const { data } = await supabase
+      .from('lead_notes')
+      .select('*')
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: false })
+    setLeadNotes(data || [])
+    setLoadingNotes(false)
+  }, [supabase])
+
+  useEffect(() => {
+    if (selected?.id) fetchNotes(selected.id)
+    else {
+      setLeadNotes([])
+      setNewNote('')
+    }
+  }, [selected?.id, fetchNotes])
+
+  async function handleSaveNote() {
+    if (!selected || !newNote.trim() || saving) return
+    setSaving(true)
+    const { error } = await supabase.from('lead_notes').insert({
+      lead_id: selected.id,
+      content: newNote.trim()
+    })
+    if (!error) {
+      setNewNote('')
+      fetchNotes(selected.id)
+    }
+    setSaving(false)
+  }
 
   async function handleMoveLead(lead: Lead, direction: 'prev' | 'next') {
     const currentIdx = stages.findIndex(s => s.name === lead.status)
@@ -436,7 +472,52 @@ export default function LeadsPage() {
             <div style={{ fontSize:'12px', letterSpacing:'.06em', textTransform:'uppercase', color:'#888', marginBottom:'8px' }}>Etapa atual</div>
             <div style={{ display:'flex', alignItems:'center', gap:'7px', padding:'8px 12px', background:'rgba(201,147,24,0.06)', border:'1px solid rgba(201,147,24,0.15)', borderRadius:'7px' }}>
               <div style={{ width:'8px', height:'8px', borderRadius:'50%', background: stages.find(s => s.name === selected.status)?.color || '#888' }} />
-              <span style={{ fontSize:'13px', color:'#d0c8bc' }}>{selected.status}</span>
+               <span style={{ fontSize:'13px', color:'#d0c8bc' }}>{selected.status}</span>
+            </div>
+          </div>
+
+          {/* Anotações Históricas */}
+          <div style={{ marginBottom:'1.5rem', display:'flex', flexDirection:'column', flex:1, minHeight:0 }}>
+            <div style={{ fontSize:'12px', letterSpacing:'.06em', textTransform:'uppercase', color:'#888', marginBottom:'8px', display:'flex', justifyContent:'space-between' }}>
+              Anotações 
+              {loadingNotes && <Loader2 size={10} style={{ animation:'spin 1s linear infinite' }} />}
+            </div>
+            
+            {/* Lista de Notas */}
+            <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:'8px', marginBottom:'12px', paddingRight:'4px' }}>
+              {leadNotes.length === 0 && !loadingNotes && (
+                <div style={{ fontSize:'11px', color:'#555', fontStyle:'italic', textAlign:'center', padding:'1rem 0' }}>Nenhuma anotação ainda.</div>
+              )}
+              {leadNotes.map(note => (
+                <div key={note.id} style={{ padding:'8px 10px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.05)', borderRadius:'6px' }}>
+                  <div style={{ fontSize:'12px', color:'#d0c8bc', lineHeight:1.4, whiteSpace:'pre-wrap' }}>{note.content}</div>
+                  <div style={{ fontSize:'9px', color:'#666', marginTop:'4px', textAlign:'right' }}>
+                    {formatDate(note.created_at, 'dd/MM HH:mm')} — {formatRelative(note.created_at)}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Input Nova Nota */}
+            <div style={{ position:'relative' }}>
+              <textarea 
+                value={newNote}
+                onChange={e => setNewNote(e.target.value)}
+                placeholder="Nova anotação..."
+                style={{ width:'100%', minHeight:'60px', maxHeight:'120px', background:'rgba(0,0,0,0.2)', border:'1px solid rgba(201,147,24,0.15)', borderRadius:'8px', padding:'8px 30px 8px 10px', fontSize:'12px', color:'#f5f0e8', resize:'none', outline:'none', fontFamily:'inherit' }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSaveNote()
+                  }
+                }}
+              />
+              <button 
+                onClick={handleSaveNote}
+                disabled={!newNote.trim() || saving}
+                style={{ position:'absolute', bottom:'8px', right:'8px', background:'none', border:'none', color: newNote.trim() ? '#c99318' : '#444', cursor: newNote.trim() ? 'pointer' : 'default', padding:'4px', display:'flex', alignItems:'center', transition:'all .15s' }}>
+                {saving ? <Loader2 size={14} style={{ animation:'spin 1s linear infinite' }} /> : <Play size={14} />}
+              </button>
             </div>
           </div>
 
