@@ -199,7 +199,9 @@ export default function LeadsPage() {
     load()
   }
 
-  const stageLeads = (stageName: string) => filteredLeads.filter(l => l.status === stageName)
+  const stageLeads = (stageName: string) => filteredLeads
+    .filter(l => l.status === stageName)
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
   const stageIdx = (stageName: string) => stages.findIndex(s => s.name === stageName)
 
   if (loading) return (
@@ -277,14 +279,14 @@ export default function LeadsPage() {
 
       {/* Kanban */}
       {stages.length > 0 && (
-        <div style={{ display:'flex', gap:'10px', overflowX:'auto', flex:1, paddingBottom:'0.5rem', alignItems:'flex-start' }}>
+        <div style={{ display:'flex', gap:'10px', overflowX:'auto', flex:1, paddingBottom:'0.5rem', alignItems:'stretch' }}>
           {stages.map((stage, si) => {
             const sl = stageLeads(stage.name)
             return (
-              <div key={stage.id} style={{ minWidth:'200px', maxWidth:'200px', display:'flex', flexDirection:'column', gap:'6px' }}>
+              <div key={stage.id} style={{ minWidth:'220px', maxWidth:'220px', display:'flex', flexDirection:'column', gap:'6px', height:'100%', overflowY:'auto', paddingRight:'4px' }}>
 
                 {/* Cabeçalho da etapa */}
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'6px 4px', gap:'4px' }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 4px', gap:'4px', position:'sticky', top:0, zIndex:10, background:'#080808', borderBottom:'1px solid rgba(255,255,255,0.03)', marginBottom:'4px' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:'7px', flex:1, minWidth:0 }}>
                     <div 
                       onClick={() => handleCycleColor(stage)}
@@ -306,7 +308,7 @@ export default function LeadsPage() {
                     ) : (
                       <span
                         onClick={() => setEditingStage({ id: stage.id, name: stage.name })}
-                        title="Clique para renomear"
+                        title={stage.name}
                         style={{ fontSize:'12px', fontWeight:500, textTransform:'uppercase', letterSpacing:'.06em', color:'#aaa', cursor:'text', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                         {stage.name}
                       </span>
