@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { formatDate, formatCurrency, normalizePhone, formatPhone } from '@/lib/utils'
 import { ArrowLeft, Edit, MessageSquare, Phone, Mail, MapPin, FileText, Stethoscope } from 'lucide-react'
 import { ClientChatButton } from './ClientChatButton'
+import { SendToFunnelButton } from './SendToFunnelButton'
 
 async function getClient(id: string) {
   const cookieStore = await cookies()
@@ -45,10 +46,11 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
             <p style={{ fontSize:'12px', color:'var(--text-muted)', marginTop:'4px' }}>Cliente desde {formatDate(client.join_date)}</p>
           </div>
         </div>
-        <div style={{ display:'flex', gap:'0.5rem' }}>
+        <div style={{ display:'flex', gap:'0.5rem', alignItems:'center' }}>
           {client.phone && (
             <ClientChatButton phone={client.phone} />
           )}
+          <SendToFunnelButton client={client} />
           <Link href={`/clientes/${id}/editar`} className="btn-primary" style={{ fontSize:'13px', padding:'0.4rem 0.875rem' }}>
             <Edit size={13} /> Editar
           </Link>
