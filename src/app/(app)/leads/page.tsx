@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate, formatCurrency, formatRelative } from '@/lib/utils'
 import type { Lead, LeadStage } from '@/types/database'
-import { Plus, ChevronLeft, ChevronRight, Settings, X, Loader2, Trash2, Search, Zap, Play, Save, MessageSquare } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, Settings, X, Loader2, Trash2, Search, Zap, Play, Save, MessageSquare, ArrowLeft, ArrowRight } from 'lucide-react'
 import { WhatsAppChatModal } from '@/components/WhatsAppChatModal'
 
 const STAGE_COLORS = ['#888','#3b82f6','#f59e0b','#8b5cf6','#10b981','#ef4444','#ec4899','#06b6d4']
@@ -62,6 +62,33 @@ export default function LeadsPage() {
     const nextColor = STAGE_COLORS[nextIdx]
     await supabase.from('lead_stages').update({ color: nextColor }).eq('id', stage.id)
     setStages(p => p.map(s => s.id === stage.id ? { ...s, color: nextColor } : s))
+  }
+
+  async function handleMoveStage(stage: LeadStage, direction: 'left' | 'right') {
+    const currentIndex = stages.findIndex(s => s.id === stage.id)
+    const targetIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1
+    
+    if (targetIndex < 0 || targetIndex >= stages.length) return
+    
+    const targetStage = stages[targetIndex]
+    
+    // Sort local state optimistically
+    const newStages = [...stages]
+    const tempOrder = stage.order
+    
+    // Swap order values
+    newStages[currentIndex] = { ...stage, order: targetStage.order }
+    newStages[targetIndex] = { ...targetStage, order: tempOrder }
+    
+    // Final sorted list
+    const sortedStages = newStages.sort((a, b) => a.order - b.order)
+    setStages(sortedStages)
+    
+    // Persist to DB
+    await Promise.all([
+      supabase.from('lead_stages').update({ order: targetStage.order }).eq('id', stage.id),
+      supabase.from('lead_stages').update({ order: tempOrder }).eq('id', targetStage.id)
+    ])
   }
 
   const load = useCallback(async () => {
@@ -369,9 +396,43 @@ export default function LeadsPage() {
                       <Zap size={11} fill={automations.find(a => a.stage_id === stage.id)?.is_active ? 'currentColor' : 'none'} />
                     </button>
                   </div>
-                  <button onClick={() => handleDeleteStage(stage)} style={{ background:'none', border:'none', color:'#555', cursor:'pointer', padding:'2px', borderRadius:'4px', display:'flex', alignItems:'center', flexShrink:0 }}>
-                    <X size={11} />
-                  </button>
+                  <div style={{ display:'flex', gap:'2px', flexShrink:0 }}>
+                    <button
+                      onClick={() => handleMoveStage(stage, 'left')}
+                      disabled={si === 0}
+                      title="Mover para esquerda"
+                      style={{ 
+                        background:'none', border:'none', 
+                        color: si === 0 ? '#222' : '#555', 
+                        cursor: si === 0 ? 'default' : 'pointer', 
+                        padding:'4px', borderRadius:'4px', display:'flex', alignItems:'center',
+                        transition:'all .15s'
+                      }}
+                      onMouseEnter={e => { if (si !== 0) (e.currentTarget as HTMLElement).style.color = '#c99318' }}
+                      onMouseLeave={e => { if (si !== 0) (e.currentTarget as HTMLElement).style.color = '#555' }}
+                    >
+                      <ArrowLeft size={11} />
+                    </button>
+                    <button
+                      onClick={() => handleMoveStage(stage, 'right')}
+                      disabled={si === stages.length - 1}
+                      title="Mover para direita"
+                      style={{ 
+                        background:'none', border:'none', 
+                        color: si === stages.length - 1 ? '#222' : '#555', 
+                        cursor: si === stages.length - 1 ? 'default' : 'pointer', 
+                        padding:'4px', borderRadius:'4px', display:'flex', alignItems:'center',
+                        transition:'all .15s'
+                      }}
+                      onMouseEnter={e => { if (si !== stages.length - 1) (e.currentTarget as HTMLElement).style.color = '#c99318' }}
+                      onMouseLeave={e => { if (si !== stages.length - 1) (e.currentTarget as HTMLElement).style.color = '#555' }}
+                    >
+                      <ArrowRight size={11} />
+                    </button>
+                    <button onClick={() => handleDeleteStage(stage)} style={{ background:'none', border:'none', color:'#444', cursor:'pointer', padding:'4px', borderRadius:'4px', display:'flex', alignItems:'center', flexShrink:0 }}>
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Cards dos leads */}
