@@ -46,12 +46,12 @@ export default async function ClienteDetailPage({ params }: { params: Promise<{ 
             <p style={{ fontSize:'12px', color:'var(--text-muted)', marginTop:'4px' }}>Cliente desde {formatDate(client.join_date)}</p>
           </div>
         </div>
-        <div style={{ display:'flex', gap:'0.5rem', alignItems:'center' }}>
+        <div style={{ display:'flex', gap:'0.75rem', alignItems:'center' }}>
           {client.phone && (
             <ClientChatButton phone={client.phone} />
           )}
           <SendToFunnelButton client={client} />
-          <Link href={`/clientes/${id}/editar`} className="btn-primary" style={{ fontSize:'13px', padding:'0.4rem 0.875rem' }}>
+          <Link href={`/clientes/${id}/editar`} className="btn-ghost" style={{ fontSize:'13px', padding:'0.4rem 0.875rem' }}>
             <Edit size={13} /> Editar
           </Link>
         </div>
