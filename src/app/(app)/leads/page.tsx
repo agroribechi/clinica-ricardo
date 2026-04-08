@@ -108,25 +108,49 @@ export default function LeadsPage() {
       setCurrentUser(p)
     }
 
-    const [{ data: l }, { data: s }, { data: a }] = await Promise.all([
-      supabase.from('leads').select('*').order('created_at', { ascending: false }),
-      supabase.from('lead_stages').select('*').order('order'),
-      supabase.from('stage_automations').select('*'),
-    ])
+    // Carregar leads (todos se admin)
+    const { data: l } = await supabase.from('leads').select('*').order('created_at', { ascending: false })
+    const { data: a } = await supabase.from('stage_automations').select('*')
 
     // Se admin, carregar todos os perfis para o filtro
     if (currentProfile?.role === 'admin') {
-      const { data: p } = await supabase.from('profiles').select('id, full_name, role')
+      const { data: p } = await supabase.from('profiles').select('id, display_name, role')
       setOwners(p || [])
     }
 
     setLeads(l || [])
-    setStages(s || [])
     setAutomations(a || [])
     setLoading(false)
-  }, [])
+  }, [supabase])
+
+  // Busca estágios dinamicamente baseado no proprietário selecionado
+  const fetchStagesForOwner = useCallback(async (ownerId: string | 'all') => {
+    let targetOwner = ownerId
+    
+    // Se "Todos", tentamos encontrar a kemila ou o primeiro admin para carregar as etapas
+    if (ownerId === 'all') {
+      const kemila = owners.find(o => o.display_name?.toLowerCase() === 'kemila')
+      const firstAdmin = owners.find(o => o.role === 'admin')
+      targetOwner = kemila?.id || firstAdmin?.id || currentUser?.id || 'all'
+      
+      // Se ainda for 'all', não busca etapas (espera owners carregar)
+      if (targetOwner === 'all') return
+    }
+
+    const { data: s } = await supabase
+      .from('lead_stages')
+      .select('*')
+      .eq('owner_id', targetOwner)
+      .order('order')
+    
+    setStages(s || [])
+  }, [supabase, owners, currentUser])
 
   useEffect(() => { load() }, [load])
+  
+  useEffect(() => {
+    if (!loading) fetchStagesForOwner(selectedOwnerId)
+  }, [selectedOwnerId, loading, fetchStagesForOwner])
 
   const fetchNotes = useCallback(async (leadId: string) => {
     setLoadingNotes(true)
@@ -317,16 +341,30 @@ export default function LeadsPage() {
     load()
   }
 
-  async function handleSaveStage(e: React.FormEvent) {
-    e.preventDefault()
-    if (!newStage.name.trim()) return
+  async function handleAddStage(e: React.FormEvent) {
+    if (e) e.preventDefault()
+    if (!newStage.name.trim() || saving) return
     setSaving(true)
-    const maxOrder = stages.length > 0 ? Math.max(...stages.map(s => s.order)) + 1 : 0
-    await supabase.from('lead_stages').insert({ name: newStage.name, color: newStage.color, order: maxOrder })
-    setNewStage({ name:'', color: STAGE_COLORS[0] })
-    setShowStageForm(false)
+    
+    // Define dono da etapa (medbio se estiver em visão geral, ou o selecionado/atual)
+    let ownerId = selectedOwnerId
+    if (ownerId === 'all') {
+      ownerId = 'f6aef97d-b0a7-4d0d-b5e1-0bd388dc3ff9' // medbio
+    }
+
+    const { data, error } = await supabase.from('lead_stages').insert({
+      name: newStage.name,
+      color: newStage.color,
+      order: stages.length,
+      owner_id: ownerId
+    }).select().single()
+
+    if (!error && data) {
+      setStages([...stages, data as LeadStage])
+      setNewStage({ name:'', color: STAGE_COLORS[0] })
+      setShowStageForm(false)
+    }
     setSaving(false)
-    load()
   }
 
   const stageLeads = (stageName: string) => filteredByOwner
@@ -361,7 +399,7 @@ export default function LeadsPage() {
               >
                 <option value="all">Todos os Leads</option>
                 {owners.map(o => (
-                  <option key={o.id} value={o.id}>{o.full_name || o.display_name}</option>
+                  <option key={o.id} value={o.id}>{o.display_name || 'Agente sem nome'}</option>
                 ))}
               </select>
             </div>
@@ -413,8 +451,16 @@ export default function LeadsPage() {
           <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', justifyContent:'center', marginTop:'1rem' }}>
             {['Novo Lead','Contato Feito','Interesse Confirmado','Proposta Enviada','Convertido'].map((sugestao, i) => (
               <button key={sugestao} onClick={async () => {
-                await supabase.from('lead_stages').insert({ name: sugestao, color: STAGE_COLORS[i % STAGE_COLORS.length], order: i })
-                load()
+                let ownerId = selectedOwnerId
+                if (ownerId === 'all') ownerId = 'f6aef97d-b0a7-4d0d-b5e1-0bd388dc3ff9'
+                
+                await supabase.from('lead_stages').insert({ 
+                  name: sugestao, 
+                  color: STAGE_COLORS[i % STAGE_COLORS.length], 
+                  order: i,
+                  owner_id: ownerId
+                })
+                fetchStagesForOwner(selectedOwnerId)
               }} style={{ padding:'5px 14px', borderRadius:'6px', background:'rgba(201,147,24,0.06)', border:'1px solid rgba(201,147,24,0.15)', color:'#888', fontSize:'12px', cursor:'pointer' }}>
                 + {sugestao}
               </button>
@@ -759,7 +805,7 @@ export default function LeadsPage() {
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:50, display:'flex', alignItems:'center', justifyContent:'center' }}>
           <div style={{ background:'#141414', border:'1px solid rgba(201,147,24,0.15)', borderRadius:'12px', width:'100%', maxWidth:'360px', padding:'1.75rem' }}>
             <h2 style={{ fontFamily:'Cormorant Garamond, serif', fontSize:'1.5rem', fontWeight:300, color:'#f5f0e8', marginBottom:'1.25rem' }}>Nova Etapa</h2>
-            <form onSubmit={handleSaveStage} style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
+            <form onSubmit={handleAddStage} style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
               <div>
                 <label style={{ display:'block', fontSize:'11px', letterSpacing:'.05em', textTransform:'uppercase', color:'#aaa', marginBottom:'0.3rem' }}>Nome da etapa *</label>
                 <input value={newStage.name} onChange={e => setNewStage(p => ({ ...p, name: e.target.value }))} placeholder="Ex: Proposta Enviada" className="input-base" />

@@ -149,14 +149,15 @@ export async function updateProfile(userId: string, data: any) {
   await checkAdmin()
   const supabase = createAdminClient()
 
+  const updates: any = {}
+  if (data.role !== undefined) updates.role = data.role
+  if (data.display_name !== undefined) updates.display_name = data.display_name
+  if (data.whatsapp_number !== undefined) updates.whatsapp_number = data.whatsapp_number
+  if (data.webhook_url !== undefined) updates.webhook_url = data.webhook_url
+
   const { error } = await supabase
     .from('profiles')
-    .update({
-      role: data.role,
-      whatsapp_number: data.whatsapp || null,
-      display_name: data.name,
-      webhook_url: data.webhook || null
-    })
+    .update(updates)
     .eq('id', userId)
 
   if (error) throw error

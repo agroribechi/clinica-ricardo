@@ -3,18 +3,19 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { normalizePhone, phonesMatch, formatDate, formatCurrency, formatWhatsAppLink } from '@/lib/utils'
-import type { WhatsAppMessage, Client, Lead, LeadStage, Conversation } from '@/types/database'
+import type { WhatsAppMessage, Client, Lead, LeadStage, Conversation, Profile } from '@/types/database'
 import { MessageSquare, Trash2, UserPlus, Users, Filter, ExternalLink, Loader2, X, Phone } from 'lucide-react'
 import { Suspense } from 'react'
 
 // ─── Painel de ações do contato ───────────────────────────────────────────────
 function ContactPanel({
-  conv, clients, leads, stages, onClose, onRefresh
+  conv, clients, leads, stages, currentUser, onClose, onRefresh
 }: {
   conv: Conversation
   clients: Client[]
   leads: Lead[]
   stages: LeadStage[]
+  currentUser: Profile | null
   onClose: () => void
   onRefresh: () => void
 }) {
@@ -66,7 +67,7 @@ function ContactPanel({
       notes: form.notes || null,
       source: 'WhatsApp',
       status: firstStage,
-      owner_id: null,
+      owner_id: currentUser?.id || null,
       potential_value: 0,
     })
     setSaving(false)
@@ -304,14 +305,36 @@ function ConversasContent() {
   const [showPanel, setShowPanel] = useState(false)
   const [filter, setFilter] = useState<'all'|'unread'|'handoff'|'clientes'|'leads'|'novos'>('all')
   const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null)
+  const [currentUser, setCurrentUser] = useState<Profile | null>(null)
+  const [allProfiles, setAllProfiles] = useState<Profile[]>([])
+  const [selectedAgentPhone, setSelectedAgentPhone] = useState<string | 'all'>('all')
 
   const load = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    
+    // 1. Busca perfis primeiro para identificar o usuário
+    const { data: profiles } = await supabase.from('profiles').select('*')
+    const myProfile = profiles?.find(p => p.id === user.id)
+    
+    setCurrentUser(myProfile || null)
+    setAllProfiles(profiles || [])
+
+    // 2. Prepara a query de mensagens com filtro de isolamento
+    let msgQuery = supabase.from('whatsapp_messages').select('*').order('sent_date', { ascending: false }).limit(300)
+    
+    // Se for agente e tiver número, isola por sender_phone
+    if (myProfile?.role !== 'admin' && myProfile?.whatsapp_number) {
+      msgQuery = msgQuery.eq('sender_phone', myProfile.whatsapp_number)
+    }
+
     const [m, c, l, s] = await Promise.all([
-      supabase.from('whatsapp_messages').select('*').order('sent_date', { ascending: false }).limit(300),
+      msgQuery,
       supabase.from('clients').select('id, display_name, phone, email, cpf'),
       supabase.from('leads').select('id, name, phone, status, source, owner_id, potential_value'),
-      supabase.from('lead_stages').select('*').order('order'),
+      supabase.from('lead_stages').select('*').order('order')
     ])
+
     setMessages(m.data || [])
     setClients(c.data || [])
     setLeads(l.data || [])
@@ -324,15 +347,27 @@ function ConversasContent() {
   useEffect(() => {
     const ch = supabase.channel('conversas-rt')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' }, p => {
-        setMessages(prev => [p.new as WhatsAppMessage, ...prev])
+        const msg = p.new as WhatsAppMessage
+        // Filtro Realtime: Agentes só recebem live updates de seu próprio número
+        if (currentUser?.role !== 'admin' && currentUser?.whatsapp_number) {
+          if (!phonesMatch(msg.sender_phone || '', currentUser.whatsapp_number)) return
+        }
+        setMessages(prev => [msg, ...prev])
       })
       .subscribe()
     return () => { supabase.removeChannel(ch) }
-  }, [])
+  }, [currentUser])
+
+  const filteredMessages = useMemo(() => {
+    if (currentUser?.role === 'admin' && selectedAgentPhone !== 'all') {
+      return messages.filter(msg => phonesMatch(msg.sender_phone || '', selectedAgentPhone))
+    }
+    return messages
+  }, [messages, currentUser, selectedAgentPhone])
 
   const conversations = useMemo<Conversation[]>(() => {
     const map = new Map<string, Conversation>()
-    messages.forEach(msg => {
+    filteredMessages.forEach(msg => {
       const phone = normalizePhone(msg.client_phone)
       if (!phone) return
       const existing = map.get(phone)
@@ -343,6 +378,7 @@ function ConversasContent() {
           last_message: msg.content || msg.message || '',
           messages: [msg], unread_count: msg.is_read ? 0 : 1,
           is_client: msg.is_client, handoff: msg.handoff,
+          sender_phone: msg.sender_phone,
         })
       } else {
         const isPhysicalDuplicate = existing.messages.some(m => 
@@ -358,6 +394,10 @@ function ConversasContent() {
         }
         if (!msg.is_read) existing.unread_count++
         if (msg.handoff) existing.handoff = true
+        // Atualiza sender_phone se for mais recente
+        if (new Date(msg.sent_date) > new Date(existing.last_message_at)) {
+          existing.sender_phone = msg.sender_phone
+        }
       }
     })
 
@@ -369,16 +409,21 @@ function ConversasContent() {
       const clientMatch = clients.find(c => phonesMatch(c.phone, conv.phone))
       const leadMatch = leads.find(l => phonesMatch(l.phone, conv.phone))
       const stage = leadMatch ? stages.find(s => s.name === leadMatch.status) : null
+      
+      // Encontra o agente pelo sender_phone da conversa
+      const agentMatch = allProfiles.find(p => p.whatsapp_number && phonesMatch(p.whatsapp_number, conv.sender_phone))
+      
       return {
         ...conv,
         display_name: clientMatch?.display_name || conv.display_name,
         client_id: clientMatch?.id,
         stage_color: stage?.color,
+        agent_name: agentMatch?.display_name || agentMatch?.full_name || conv.sender_phone,
       }
     })
 
     return enriched
-  }, [messages, clients, leads, stages])
+  }, [filteredMessages, clients, leads, stages, allProfiles])
 
   const filtered = useMemo(() => {
     switch (filter) {
@@ -459,7 +504,23 @@ function ConversasContent() {
       {/* ── Lista de conversas ── */}
       <div style={{ width:'280px', minWidth:'280px', borderRight:'1px solid rgba(255,255,255,0.05)', display:'flex', flexDirection:'column', height:'100%' }}>
         <div style={{ padding:'1rem 1rem 0.75rem', borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
-          <h2 style={{ fontFamily:'var(--font-display)', fontSize:'1.5rem', fontWeight:300, color:'#f0ebe0', marginBottom:'0.625rem' }}>Conversas</h2>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'0.625rem' }}>
+            <h2 style={{ fontFamily:'var(--font-display)', fontSize:'1.4rem', fontWeight:300, color:'#f0ebe0' }}>Conversas</h2>
+            
+            {/* Filtro de Agente (Admin Only) */}
+            {currentUser?.role === 'admin' && (
+              <select 
+                value={selectedAgentPhone}
+                onChange={e => setSelectedAgentPhone(e.target.value)}
+                style={{ padding:'4px 8px', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'6px', color:'#7a7060', fontSize:'10px', outline:'none', cursor:'pointer', maxWidth:'120px' }}
+              >
+                <option value="all">Filtro Agente</option>
+                {allProfiles.filter(p => p.whatsapp_number).map(p => (
+                  <option key={p.id} value={p.whatsapp_number!}>{p.display_name || 'Sem nome'}</option>
+                ))}
+              </select>
+            )}
+          </div>
           {/* Filtros em duas linhas */}
           <div style={{ display:'flex', flexWrap:'wrap', gap:'3px' }}>
             {FILTERS.map(f => (
@@ -502,8 +563,13 @@ function ConversasContent() {
                     </span>
                     <span style={{ fontSize:'10px', color:'#7a7060', flexShrink:0 }}>{fmt(conv.last_message_at)}</span>
                   </div>
-                  <div style={{ fontSize:'11px', color:'#7a7060', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:'1px' }}>
-                    {conv.last_message || '...'}
+                  <div style={{ fontSize:'11px', color:'#7a7060', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginTop:'1px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <span>{conv.last_message || '...'}</span>
+                    {conv.agent_name && (
+                      <span style={{ fontSize:'9px', background:'rgba(255,255,255,0.05)', padding:'1px 5px', borderRadius:'4px', color:'#7a7060', marginLeft:'6px' }}>
+                        Para: {conv.agent_name}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:'3px', flexShrink:0 }}>
@@ -609,6 +675,7 @@ function ConversasContent() {
           clients={clients}
           leads={leads}
           stages={stages}
+          currentUser={currentUser}
           onClose={() => setShowPanel(false)}
           onRefresh={load}
         />

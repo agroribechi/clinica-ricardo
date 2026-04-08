@@ -26,27 +26,31 @@ export function formatCurrency(value?: number | null): string {
 
 export function normalizePhone(phone?: string | null): string {
   if (!phone) return ''
-  return phone.split('@')[0].replace(/\D/g, '')
+  let digits = phone.split('@')[0].replace(/\D/g, '')
+  // Remove DDI 55 se o número resultar em 10 ou 11 dígitos (padrão BR)
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+    digits = digits.slice(2)
+  }
+  return digits
 }
 
 export function formatWhatsAppLink(phone?: string | null): string {
   const digits = normalizePhone(phone)
   if (!digits) return ''
-  // Garante DDI 55 (Brasil) se o número tiver ≤ 11 dígitos
-  const withDDI = digits.startsWith('55') && digits.length >= 12 ? digits : `55${digits}`
+  // Garante DDI 55 (Brasil) para os links wa.me
+  const withDDI = digits.startsWith('55') ? digits : `55${digits}`
   return `https://wa.me/${withDDI}`
 }
 
 export function formatPhone(phone?: string | null): string {
   const digits = normalizePhone(phone)
   if (!digits) return ''
-  // Remove DDI 55 se presente e resultar em 10 ou 11 dígitos
-  const local = digits.startsWith('55') && digits.length >= 12 ? digits.slice(2) : digits
-  if (local.length === 11) {
-    return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`
+  
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
   }
-  if (local.length === 10) {
-    return `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
   }
   return digits
 }
@@ -55,10 +59,7 @@ export function phonesMatch(a?: string | null, b?: string | null): boolean {
   const na = normalizePhone(a)
   const nb = normalizePhone(b)
   if (!na || !nb) return false
-  // Compara pelos últimos 9 dígitos (DDD + 9 dígitos) para ignorar DDI
-  const ta = na.slice(-9)
-  const tb = nb.slice(-9)
-  return ta === tb || na.endsWith(tb) || nb.endsWith(ta)
+  return na === nb
 }
 
 export function initials(name?: string | null): string {

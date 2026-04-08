@@ -11,8 +11,9 @@ create table if not exists public.profiles (
   updated_at timestamptz default now()
 );
 
--- 2. AJUSTAR TABELA DE LEADS
+-- 2. AJUSTAR TABELAS DO FUNIL
 alter table leads add column if not exists owner_id uuid references auth.users(id);
+alter table lead_stages add column if not exists owner_id uuid references auth.users(id);
 
 -- 3. HABILITAR RLS EM TUDO
 alter table clients enable row level security;
@@ -58,12 +59,39 @@ create policy "Dono ou Admin pode editar lead" on leads for update using (
 );
 create policy "Admin pode deletar lead" on leads for delete using (public.is_admin());
 
--- MENSAGENS WHATSAPP (Isoladas por dono ou Admin)
-create policy "Agents veem mensagens de seus leads" on whatsapp_messages for select using (
-  exists (
-    select 1 from leads where phone = client_phone and owner_id = auth.uid()
-  ) or public.is_admin()
+-- 1. Função de normalização no Postgres
+CREATE OR REPLACE FUNCTION public.normalize_phone(phone text)
+RETURNS text AS $$
+DECLARE
+  digits text;
+BEGIN
+  IF phone IS NULL THEN RETURN NULL; END IF;
+  digits := regexp_replace(phone, '\D', '', 'g');
+  IF (left(digits, 2) = '55' AND (length(digits) = 12 OR length(digits) = 13)) THEN
+    digits := right(digits, -2);
+  END IF;
+  RETURN digits;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- MENSAGENS WHATSAPP (Isoladas pelo número vinculado ao perfil ou Admin)
+DROP POLICY IF EXISTS "Agents veem mensagens de seus leads" ON public.whatsapp_messages;
+DROP POLICY IF EXISTS "Agents veem mensagens vinculadas ao seu numero" ON public.whatsapp_messages;
+CREATE POLICY "Agents veem mensagens vinculadas ao seu numero" ON public.whatsapp_messages 
+FOR SELECT 
+USING (
+  public.normalize_phone(sender_phone) = (
+    SELECT public.normalize_phone(whatsapp_number) 
+    FROM public.profiles 
+    WHERE id = auth.uid()
+  ) 
+  OR public.is_admin()
 );
+
+-- ETAPAS DO FUNIL (Admin vê tudo, Dono vê as suas)
+create policy "Admins podem ver todas as etapas" on lead_stages for select using (public.is_admin());
+create policy "Agents veem suas próprias etapas" on lead_stages for select using (owner_id = auth.uid() or public.is_admin());
+create policy "Admins podem gerenciar etapas" on lead_stages for all using (public.is_admin());
 
 -- 5. TRIGGER PARA CRIAR PERFIL AUTOMATICAMENTE
 create or replace function public.handle_new_user()

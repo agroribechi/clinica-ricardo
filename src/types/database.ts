@@ -135,6 +135,8 @@ export type Conversation = {
   client_id?: string
   stage_color?: string
   handoff?: boolean
+  sender_phone?: string | null
+  agent_name?: string | null
 }
 
 export type Profile = {
