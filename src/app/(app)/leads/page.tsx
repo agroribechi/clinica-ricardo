@@ -28,6 +28,9 @@ export default function LeadsPage() {
   const [leadNotes, setLeadNotes] = useState<any[]>([])
   const [newNote, setNewNote] = useState('')
   const [loadingNotes, setLoadingNotes] = useState(false)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [owners, setOwners] = useState<any[]>([])
+  const [selectedOwnerId, setSelectedOwnerId] = useState<string | 'all'>('all')
 
   // Filtra leads pelo termo de busca (nome ou telefone)
   const searchTerm = search.trim().toLowerCase()
@@ -39,6 +42,10 @@ export default function LeadsPage() {
         return false
       })
     : leads
+
+  const filteredByOwner = selectedOwnerId === 'all' 
+    ? filteredLeads 
+    : filteredLeads.filter(l => l.owner_id === selectedOwnerId)
 
   async function handleRenameStage(stage: { id: string; name: string }) {
     const trimmed = stage.name.trim()
@@ -92,11 +99,27 @@ export default function LeadsPage() {
   }
 
   const load = useCallback(async () => {
+    // Pegar usuário atual e seu perfil
+    const { data: { user } } = await supabase.auth.getUser()
+    let currentProfile = null
+    if (user) {
+      const { data: p } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      currentProfile = p
+      setCurrentUser(p)
+    }
+
     const [{ data: l }, { data: s }, { data: a }] = await Promise.all([
       supabase.from('leads').select('*').order('created_at', { ascending: false }),
       supabase.from('lead_stages').select('*').order('order'),
       supabase.from('stage_automations').select('*'),
     ])
+
+    // Se admin, carregar todos os perfis para o filtro
+    if (currentProfile?.role === 'admin') {
+      const { data: p } = await supabase.from('profiles').select('id, display_name, role')
+      setOwners(p || [])
+    }
+
     setLeads(l || [])
     setStages(s || [])
     setAutomations(a || [])
@@ -127,9 +150,20 @@ export default function LeadsPage() {
   async function handleSaveNote() {
     if (!selected || !newNote.trim() || saving) return
     setSaving(true)
+    
+    // Assumir controle se não tiver dono
+    let ownerUpdate = {}
+    if (!selected.owner_id && currentUser?.id) {
+      ownerUpdate = { owner_id: currentUser.id }
+      await supabase.from('leads').update(ownerUpdate).eq('id', selected.id)
+      setLeads(p => p.map(l => l.id === selected.id ? { ...l, owner_id: currentUser.id } : l))
+      setSelected(p => p ? { ...p, owner_id: currentUser.id } : p)
+    }
+
     const { error } = await supabase.from('lead_notes').insert({
       lead_id: selected.id,
-      content: newNote.trim()
+      content: newNote.trim(),
+      author_id: currentUser?.id
     })
     if (!error) {
       setNewNote('')
@@ -144,9 +178,17 @@ export default function LeadsPage() {
     if (targetIdx < 0 || targetIdx >= stages.length) return
     const targetStatus = stages[targetIdx].name
     setMoving(lead.id)
-    await supabase.from('leads').update({ status: targetStatus, updated_at: new Date().toISOString() }).eq('id', lead.id)
-    setLeads(p => p.map(l => l.id === lead.id ? { ...l, status: targetStatus } : l))
-    if (selected?.id === lead.id) setSelected(p => p ? { ...p, status: targetStatus } : p)
+
+    // Assumir controle se não tiver dono
+    const updates: any = { status: targetStatus, updated_at: new Date().toISOString() }
+    if (!lead.owner_id && currentUser?.id) {
+      updates.owner_id = currentUser.id
+      lead.owner_id = currentUser.id // Update reference for automation
+    }
+
+    await supabase.from('leads').update(updates).eq('id', lead.id)
+    setLeads(p => p.map(l => l.id === lead.id ? { ...l, ...updates } : l))
+    if (selected?.id === lead.id) setSelected(p => p ? { ...p, ...updates } : p)
     setMoving(null)
     
     // Trigger automation if target stage has one active
@@ -158,24 +200,49 @@ export default function LeadsPage() {
 
   async function handleTriggerAutomation(lead: Lead, auto: any) {
     console.log(`Triggering automation for ${lead.name} in stage ${lead.status}...`)
-    // If webhook_url is provided, hit it. Otherwise mock or use default.
-    const url = auto.webhook_url || 'https://n8n.seuservidor.com/webhook/crm-trigger'
+    
+    // Buscar URLs de Webhook
+    let webhooks: string[] = []
+    
+    if (lead.owner_id) {
+      // Se tem dono, usa o webhook do dono
+      const { data: owner } = await supabase.from('profiles').select('webhook_url').eq('id', lead.owner_id).single()
+      if (owner?.webhook_url) webhooks.push(owner.webhook_url)
+    } else {
+      // Se não tem dono, notifica TODOS que possuem webhook
+      const { data: team } = await supabase.from('profiles').select('webhook_url').not('webhook_url', 'is', null)
+      if (team) webhooks = team.map(t => t.webhook_url).filter(Boolean) as string[]
+    }
+
+    // Se não encontrou webhooks específicos, usa o da etapa ou o global
+    if (webhooks.length === 0) {
+      if (auto.webhook_url) webhooks.push(auto.webhook_url)
+      else webhooks.push('https://n8n.seuservidor.com/webhook/crm-trigger')
+    }
+
+    const payload = {
+      event: 'lead_moved',
+      lead_id: lead.id,
+      lead_name: lead.name,
+      lead_phone: lead.phone,
+      chatId: (lead.phone || '').replace(/\D/g, ''),
+      text: auto.message_template.replace('@nome', lead.name),
+      message: auto.message_template.replace('@nome', lead.name),
+      delay_minutes: auto.delay_minutes,
+      session: auto.waha_session || 'default'
+    }
+
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event: 'lead_moved',
-          lead_id: lead.id,
-          lead_name: lead.name,
-          lead_phone: lead.phone,
-          chatId: (lead.phone || '').replace(/\D/g, ''),
-          text: auto.message_template.replace('@nome', lead.name),
-          message: auto.message_template.replace('@nome', lead.name),
-          delay_minutes: auto.delay_minutes,
-          session: auto.waha_session || 'default'
+      const results = await Promise.all(webhooks.map(url => 
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
         })
-      })
+      ))
+      
+      const allOk = results.every(r => r.ok)
+
       
       // Registrar log no banco de dados para histórico
       if (auto.id) {
@@ -183,8 +250,8 @@ export default function LeadsPage() {
           automation_id: auto.id,
           lead_name: lead.name,
           lead_phone: lead.phone,
-          status: response.ok ? 'success' : 'error',
-          error_message: response.ok ? null : `HTTP ${response.status}: ${response.statusText}`
+          status: allOk ? 'success' : 'error',
+          error_message: allOk ? null : `Falha em um ou mais webhooks`
         })
       }
 
@@ -242,7 +309,7 @@ export default function LeadsPage() {
       potential_value: parseFloat(newLead.potential_value) || 0,
       notes: newLead.notes || null,
       status: stages[0].name,
-      owner: 'Não atribuído',
+      owner_id: (await supabase.auth.getUser()).data.user?.id,
     })
     setNewLead({ name:'', phone:'', email:'', source:'WhatsApp', potential_value:'', notes:'' })
     setShowLeadForm(false)
@@ -262,7 +329,7 @@ export default function LeadsPage() {
     load()
   }
 
-  const stageLeads = (stageName: string) => filteredLeads
+  const stageLeads = (stageName: string) => filteredByOwner
     .filter(l => l.status === stageName)
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
   const stageIdx = (stageName: string) => stages.findIndex(s => s.name === stageName)
@@ -283,6 +350,23 @@ export default function LeadsPage() {
           <div style={{ height:'1px', marginTop:'0.5rem', width:'120px', background:'linear-gradient(90deg, rgba(201,147,24,0.4), transparent)' }} />
         </div>
         <div style={{ display:'flex', gap:'0.5rem', alignItems:'center' }}>
+          {/* Filtro de Equipe (Admin Only) */}
+          {currentUser?.role === 'admin' && (
+            <div style={{ display:'flex', alignItems:'center', gap:'8px', marginRight:'0.5rem' }}>
+              <span style={{ fontSize:'11px', color:'#666', fontWeight:600, textTransform:'uppercase' }}>Equipe:</span>
+              <select 
+                value={selectedOwnerId}
+                onChange={e => setSelectedOwnerId(e.target.value)}
+                style={{ padding:'6px 10px', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'7px', color:'#d0c8bc', fontSize:'12px', outline:'none', cursor:'pointer' }}
+              >
+                <option value="all">Todos os Leads</option>
+                {owners.map(o => (
+                  <option key={o.id} value={o.id}>{o.display_name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Campo de busca */}
           <div style={{ position:'relative', display:'flex', alignItems:'center' }}>
             <Search size={13} style={{ position:'absolute', left:'9px', color:'#666', pointerEvents:'none' }} />

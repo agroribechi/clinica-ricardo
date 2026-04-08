@@ -63,5 +63,15 @@ export function phonesMatch(a?: string | null, b?: string | null): boolean {
 
 export function initials(name?: string | null): string {
   if (!name) return '?'
-  return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+  return name.split(' ')
+    .slice(0, 2)
+    .map(w => [...w][0]) // Safe emoji extraction
+    .join('')
+    .toUpperCase()
+}
+
+export function safeFirstChar(name?: string | null): string {
+  if (!name) return '?'
+  const char = [...name][0]
+  return char ? char.toUpperCase() : '?'
 }

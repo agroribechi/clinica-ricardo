@@ -136,5 +136,14 @@ export type Conversation = {
   handoff?: boolean
 }
 
+export type Profile = {
+  id: string
+  display_name?: string | null
+  role: 'admin' | 'agent'
+  whatsapp_number?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
 // Alias de Database vazio para o createClient
 export type Database = Record<string, unknown>

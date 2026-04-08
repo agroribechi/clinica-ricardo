@@ -4,8 +4,10 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, Users, Filter, MessageSquare,
-  Package, BrainCircuit, Settings, LogOut, Sparkles, Upload
+  Package, BrainCircuit, Settings, LogOut, Sparkles, Upload, UserCog
 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import type { Profile } from '@/types/database'
 
 const nav = [
   { href: '/dashboard',     icon: LayoutDashboard, label: 'Painel' },
@@ -20,9 +22,21 @@ const nav = [
 ]
 
 export function Sidebar({ clinicName = 'Med Bio' }: { clinicName?: string }) {
+  const [profile, setProfile] = useState<Profile | null>(null)
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+
+  useEffect(() => {
+    async function loadProfile() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+        setProfile(data)
+      }
+    }
+    loadProfile()
+  }, [supabase])
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -65,6 +79,12 @@ export function Sidebar({ clinicName = 'Med Bio' }: { clinicName?: string }) {
             </Link>
           )
         })}
+        {profile?.role === 'admin' && (
+          <Link href="/usuarios" className={`nav-link ${pathname.startsWith('/usuarios') ? 'active' : ''}`}>
+            <UserCog size={15} />
+            <span>Usuários</span>
+          </Link>
+        )}
       </nav>
 
       {/* Logout */}

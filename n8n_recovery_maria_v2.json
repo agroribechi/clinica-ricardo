@@ -1,0 +1,1045 @@
+{
+  "success": true,
+  "data": {
+    "updatedAt": "2026-04-02T22:48:56.000Z",
+    "createdAt": "2026-04-02T22:34:48.702Z",
+    "id": "ue67IvflZvC6quFr",
+    "name": "maria atendimento completo v2",
+    "description": null,
+    "active": false,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "webhook-atendimento",
+          "options": {}
+        },
+        "id": "74da5703-330f-479f-95b7-60928d1b413c",
+        "name": "Webhook",
+        "position": [
+          -2448,
+          32
+        ],
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1,
+        "webhookId": "8673fc05-736f-48e7-8ca8-6931e889f9e6"
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.body.payload.body }}",
+                      "rightValue": "",
+                      "operator": {
+                        "type": "string",
+                        "operation": "notEmpty"
+                      },
+                      "id": "detect-text"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "text"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.body.payload._data.message.audioMessage.url }}",
+                      "rightValue": "",
+                      "operator": {
+                        "type": "string",
+                        "operation": "notEmpty"
+                      },
+                      "id": "detect-audio"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "audio"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "8e5bb7a9-a5ae-4c3d-a44d-f32896b06de6",
+        "name": "DetectAudio",
+        "position": [
+          -2240,
+          32
+        ],
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.3
+      },
+      {
+        "parameters": {
+          "resource": "audio",
+          "operation": "transcribe",
+          "options": {
+            "language": "pt",
+            "temperature": 0
+          }
+        },
+        "id": "aba6fdfd-90fe-468b-80e0-bc922757998e",
+        "name": "TranscribeAudio",
+        "position": [
+          -1664,
+          208
+        ],
+        "type": "@n8n/n8n-nodes-langchain.openAi",
+        "typeVersion": 1.6,
+        "credentials": {
+          "openAiApi": {
+            "id": "8nSLoF8lloz78AGL",
+            "name": "OpenAi account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Adiciona a transcrição ao corpo da mensagem\nconst webhook = $('Webhook').first();\nconst transcription = $input.first().json.text;\n\nreturn {\n  json: {\n    ...webhook.json,\n    body: {\n      ...webhook.json.body,\n      payload: {\n        ...webhook.json.body.payload,\n        body: transcription,\n        originalType: 'audio'\n      }\n    }\n  }\n};"
+        },
+        "id": "77610fba-4392-4029-a45d-479d4896de07",
+        "name": "MergeTranscription",
+        "position": [
+          -1408,
+          272
+        ],
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "mode": "combine",
+          "combineBy": "combineByPosition",
+          "options": {
+            "includeUnpaired": true
+          }
+        },
+        "id": "5611404d-db2b-460b-ae72-0835b593669e",
+        "name": "MergePaths",
+        "position": [
+          -1936,
+          32
+        ],
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3
+      },
+      {
+        "parameters": {
+          "amount": 3,
+          "unit": "seconds"
+        },
+        "id": "0e76a5e9-9545-4a6f-a0f9-6e9ed9816154",
+        "name": "Wait3s",
+        "position": [
+          -1856,
+          -128
+        ],
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1,
+        "webhookId": "afe28e6b-f94e-493d-a15b-352052d5090f"
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "clients",
+          "limit": 4,
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "contact",
+                "condition": "eq",
+                "keyValue": "={{ $json.debug.jidOnlyNum }}"
+              }
+            ]
+          }
+        },
+        "id": "cb93f141-cd12-4451-8b36-033cf4817248",
+        "name": "CheckClient",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -1504,
+          32
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "wwMmJGFc2B68aTUZ",
+            "name": "supabase maria"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "client-exists",
+                "leftValue": "={{ $json.length > 0 }}",
+                "operator": {
+                  "operation": "equals",
+                  "singleValue": true,
+                  "type": "boolean"
+                },
+                "rightValue": true
+              }
+            ],
+            "combinator": "and"
+          },
+          "looseTypeValidation": true,
+          "options": {}
+        },
+        "id": "65ba8a16-aa9a-42aa-8cac-3ac96abe1a53",
+        "name": "RouterClient",
+        "position": [
+          -1296,
+          32
+        ],
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2
+      },
+      {
+        "parameters": {
+          "jsCode": "// Feedback customizado baseado no tipo de cliente\nconst isExistingClient = $input.first().json && $input.first().json.length > 0;\nconst clientName = isExistingClient ? $input.first().json[0]?.name : 'visitante';\nconst feedback = isExistingClient \n  ? `✨ Olá novamente, ${clientName}! A Dra. Maria Martha está analisando sua mensagem...`\n  : `👋 Bem-vindo! Sou a Cuca, assistente jurídica. A Dra. Maria Martha está analisando sua mensagem...`;\n\nreturn {\n  json: {\n    ...JSON.parse(JSON.stringify($input.first().json)),\n    feedback: feedback,\n    isExistingClient: isExistingClient\n  }\n};"
+        },
+        "id": "b6ccbb79-468f-4d3c-b5dd-c8758d437980",
+        "name": "SendFeedbackCustom",
+        "position": [
+          -1088,
+          32
+        ],
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "resource": "Chatting",
+          "operation": "Send Text",
+          "session": "={{ $json.body.session }}",
+          "chatId": "={{ $json.body.payload._data.key.remoteJidAlt }}",
+          "text": "={{ $json.feedback }}",
+          "requestOptions": {}
+        },
+        "id": "9982248f-8dec-4326-87b9-d35feb5727b8",
+        "name": "SendFeedback",
+        "position": [
+          -944,
+          32
+        ],
+        "type": "@devlikeapro/n8n-nodes-waha.WAHA",
+        "typeVersion": 202502,
+        "credentials": {
+          "wahaApi": {
+            "id": "ByrYg7IsPG4p9xFR",
+            "name": "WAHA account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "insert"
+        },
+        "id": "373ae4ce-2b12-472c-88cf-3ae41351c5c1",
+        "name": "CreateClient",
+        "position": [
+          -1120,
+          288
+        ],
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "credentials": {
+          "supabaseApi": {
+            "id": "wwMmJGFc2B68aTUZ",
+            "name": "supabase maria"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "sessionIdType": "customKey",
+          "sessionKey": "={{ $json.body.payload._data.key.remoteJid }}",
+          "contextWindowLength": 20
+        },
+        "id": "80197e02-5b99-4dd6-b776-365798856dee",
+        "name": "AiMemory",
+        "position": [
+          -624,
+          432
+        ],
+        "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+        "typeVersion": 1.3
+      },
+      {
+        "parameters": {
+          "model": {
+            "__rl": true,
+            "mode": "list",
+            "value": "gpt-4o-mini"
+          },
+          "builtInTools": {},
+          "options": {
+            "maxTokens": 500,
+            "temperature": 0.7
+          }
+        },
+        "id": "278c5e92-c60a-422b-b1ba-dc812405ad38",
+        "name": "AiModel",
+        "position": [
+          -752,
+          432
+        ],
+        "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+        "typeVersion": 1.3,
+        "credentials": {
+          "openAiApi": {
+            "id": "8nSLoF8lloz78AGL",
+            "name": "OpenAi account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.body.payload.body }}",
+          "options": {
+            "systemMessage": "Você é a Cuca, assistente jurídica da Dra. Maria Martha.\n\n# PERFIL\nVocê é profissional, empática e extremamente organizada. Sua função é realizar triagem inteligente, extraindo informações estruturadas para que a advogada receba um relatório pronto.\n\n# CONTEXTO DO CLIENTE\nIsExistingClient: {{ $json.isExistingClient }}\n\n# REGRAS ABSOLUTAS\n1. NUNCA dê aconselhamento jurídico - você não é advogada\n2. Seja objetiva e prática - evite prolixidade\n3. Se há processo existente, sempre peça o número CNJ\n4. Mantenha confidencialidade absoluta\n5. Identifique urgências (prazos, audiências)\n6. SE for cliente novo: Faça acolhimento e colete dados pessoais\n7. SE for cliente existente: Pule acolhimento, vá direto para o problema\n\n# FLUXO DE ATENDIMENTO\n## Para Clientes Novos:\n1. Acolhimento: Cumprimente e identifique o cliente\n2. Colete: Nome completo, telefone, email\n3. Classificação: Identifique a área (Cível, Família, Trabalhista, etc)\n4. Extração de Fatos\n\n## Para Clientes Existentes:\n1. Saudação: Bem-vindo de volta\n2. Direto para: Qual é sua dúvida/problema?\n3. Extração de Fatos\n\n# RESPOSTA JSON OBRIGATÓRIA\nSempre responda em JSON com:\n{\n  \"intencao\": \"status|documentos|emergencia|geral\",\n  \"urgente\": true|false,\n  \"area\": \"civil|familia|trabalhista|criminal|previdenciario\",\n  \"resumo\": \"resumo objetivo em 1-2 frases\",\n  \"proximos_passos\": \"ação recomendada\",\n  \"tipoCliente\": \"novo|existente\"\n}\n\n# ESTILO\n- Respostas curtas e diretas\n- Use negrito para destacar informações críticas\n- Termine sempre com pergunta objetiva para continuar a triagem\n- Em emergências, COMANDE (não pergunte): \"Envie agora os documentos X, Y e Z\"\n- Linguagem muito simples de entender\n- Adapte tom para novo cliente (mais acolhedor) ou cliente existente (mais direto)"
+          }
+        },
+        "id": "5f24353c-fd4a-4427-8c49-cbf043554a15",
+        "name": "AiAgent",
+        "position": [
+          -704,
+          48
+        ],
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1.8
+      },
+      {
+        "parameters": {
+          "jsCode": "// Garantir apenas 1 item\nconst item = $input.first();\nreturn [item];"
+        },
+        "id": "95463f7e-2db7-4b4e-8b82-bd3f74293cad",
+        "name": "LimitItems",
+        "position": [
+          -464,
+          256
+        ],
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "conditions": [
+                    {
+                      "id": "intent-status",
+                      "leftValue": "={{ JSON.parse($json.output).intencao }}",
+                      "operator": {
+                        "operation": "equals",
+                        "type": "string"
+                      },
+                      "rightValue": "status"
+                    }
+                  ]
+                },
+                "renameOutput": true,
+                "outputKey": "status"
+              },
+              {
+                "conditions": {
+                  "conditions": [
+                    {
+                      "id": "intent-docs",
+                      "leftValue": "={{ JSON.parse($json.output).intencao }}",
+                      "operator": {
+                        "operation": "equals",
+                        "type": "string"
+                      },
+                      "rightValue": "documentos"
+                    }
+                  ]
+                },
+                "renameOutput": true,
+                "outputKey": "documentos"
+              },
+              {
+                "conditions": {
+                  "conditions": [
+                    {
+                      "id": "intent-emergency",
+                      "leftValue": "={{ JSON.parse($json.output).intencao }}",
+                      "operator": {
+                        "operation": "equals",
+                        "type": "string"
+                      },
+                      "rightValue": "emergencia"
+                    }
+                  ]
+                },
+                "renameOutput": true,
+                "outputKey": "emergencia"
+              },
+              {
+                "conditions": {
+                  "conditions": [
+                    {
+                      "id": "intent-general",
+                      "leftValue": "={{ JSON.parse($json.output).intencao }}",
+                      "operator": {
+                        "operation": "equals",
+                        "type": "string"
+                      },
+                      "rightValue": "geral"
+                    }
+                  ]
+                },
+                "renameOutput": true,
+                "outputKey": "geral"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "bbbf6ee6-0d1c-4fae-b0b7-d56ef60d00b6",
+        "name": "IntentSwitch",
+        "position": [
+          -256,
+          448
+        ],
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.2
+      },
+      {
+        "parameters": {
+          "url": "https://api-publica.datajud.cnj.jus.br/api_publica_tjgo/_search",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpHeaderAuth",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=="
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"query\": {\n    \"match\": {\n      \"numeroProcesso\": \"{{ $json.numero_processo }}\"\n    }\n  },\n  \"size\": 1\n}",
+          "options": {}
+        },
+        "id": "18f00863-51b5-47a1-87e4-cfd1207d79b9",
+        "name": "SearchDataJud",
+        "position": [
+          -240,
+          -176
+        ],
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.1,
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "resource": "Chatting",
+          "operation": "Send Text",
+          "session": "={{ $('Webhook').item.json.body.session }}",
+          "chatId": "={{ $('Webhook').item.json.body.payload._data.key.remoteJidAlt }}",
+          "text": "=📋 *Status do Processo*\n\nNúmero: {{ $json.hits.hits[0]._source.numeroProcesso }}\n\n*Última Movimentação:*\n{{ $json.hits.hits[0]._source.movimentos[0].nome }}\nData: {{ $json.hits.hits[0]._source.movimentos[0].dataHora }}\n\n_A Dra. Maria Martha será notificada para análise detalhada._",
+          "requestOptions": {}
+        },
+        "id": "7d80f156-c7de-4110-980b-1c0658e6f5b5",
+        "name": "SendProcessStatus",
+        "position": [
+          -32,
+          -176
+        ],
+        "type": "@devlikeapro/n8n-nodes-waha.WAHA",
+        "typeVersion": 202502,
+        "credentials": {
+          "wahaApi": {
+            "id": "ByrYg7IsPG4p9xFR",
+            "name": "WAHA account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "resource": "Chatting",
+          "operation": "Send Text",
+          "session": "={{ $('Webhook').item.json.body.session }}",
+          "chatId": "={{ $('Webhook').item.json.body.payload._data.key.remoteJidAlt }}",
+          "text": "=📎 *Envio de Documentos*\n\n{{ JSON.parse($('AiAgent').item.json.output).proximos_passos }}\n\nPor favor, envie os documentos necessários por aqui mesmo no WhatsApp.\n\n✅ Formatos aceitos: PDF, Imagens, Documentos\n\n_Seus documentos serão analisados pela Dra. Maria Martha._",
+          "requestOptions": {}
+        },
+        "id": "e1398cf8-e199-4701-a529-297045b027b3",
+        "name": "SendDocsRequest",
+        "position": [
+          -32,
+          -16
+        ],
+        "type": "@devlikeapro/n8n-nodes-waha.WAHA",
+        "typeVersion": 202502,
+        "credentials": {
+          "wahaApi": {
+            "id": "ByrYg7IsPG4p9xFR",
+            "name": "WAHA account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "resource": "Chatting",
+          "operation": "Send Text",
+          "session": "={{ $('Webhook').item.json.body.session }}",
+          "chatId": "={{ $('Webhook').item.json.body.payload._data.key.remoteJidAlt }}",
+          "text": "=🚨 *SITUAÇÃO URGENTE IDENTIFICADA*\n\n{{ JSON.parse($('AiAgent').item.json.output).resumo }}\n\n*AÇÃO IMEDIATA NECESSÁRIA:*\n{{ JSON.parse($('AiAgent').item.json.output).proximos_passos }}\n\n⚠️ A Dra. Maria Martha será notificada IMEDIATAMENTE.\n\n_Não se preocupe, estamos cuidando do seu caso com prioridade máxima._",
+          "requestOptions": {}
+        },
+        "id": "39ad007c-60e0-4c02-ac70-fd6e436df6dd",
+        "name": "SendEmergencyAlert",
+        "position": [
+          -32,
+          128
+        ],
+        "type": "@devlikeapro/n8n-nodes-waha.WAHA",
+        "typeVersion": 202502,
+        "credentials": {
+          "wahaApi": {
+            "id": "ByrYg7IsPG4p9xFR",
+            "name": "WAHA account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "resource": "Chatting",
+          "operation": "Send Text",
+          "session": "={{ $('Webhook').item.json.body.session }}",
+          "chatId": "={{ $('Webhook').item.json.body.payload._data.key.remoteJidAlt }}",
+          "text": "={{ JSON.parse($json.output).output }}",
+          "requestOptions": {}
+        },
+        "id": "a86bc1dc-3637-4f92-a22a-d42ef4bb51b8",
+        "name": "SendGeneralResponse",
+        "position": [
+          -32,
+          288
+        ],
+        "type": "@devlikeapro/n8n-nodes-waha.WAHA",
+        "typeVersion": 202502,
+        "credentials": {
+          "wahaApi": {
+            "id": "ByrYg7IsPG4p9xFR",
+            "name": "WAHA account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "insert"
+        },
+        "id": "43932142-3096-4dcc-b1e5-b9b762e5d547",
+        "name": "LogInteraction",
+        "position": [
+          160,
+          32
+        ],
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "credentials": {
+          "supabaseApi": {
+            "id": "wwMmJGFc2B68aTUZ",
+            "name": "supabase maria"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "conditions": [
+              {
+                "id": "is-urgent",
+                "leftValue": "={{ JSON.parse($('AiAgent').item.json.output).urgente }}",
+                "operator": {
+                  "operation": "equals",
+                  "type": "boolean"
+                },
+                "rightValue": true
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "d83a2ebc-9b6d-4650-a868-5f8aef04fce9",
+        "name": "CheckUrgency",
+        "position": [
+          368,
+          32
+        ],
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2
+      },
+      {
+        "parameters": {
+          "url": "https://api.telegram.org/bot{{ $env.TELEGRAM_BOT_TOKEN }}/sendMessage",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"chat_id\": \"{{ $env.TELEGRAM_CHAT_ID }}\",\n  \"text\": \"🚨 ATENDIMENTO URGENTE\\n\\nCliente: {{ $('CheckClient').item.json[0]?.name || 'Novo Cliente' }}\\nContato: {{ $('Webhook').item.json.body.payload._data.key.remoteJidAlt }}\\n\\nResumo: {{ JSON.parse($('AiAgent').item.json.output).resumo }}\\n\\nAção necessária: {{ JSON.parse($('AiAgent').item.json.output).proximos_passos }}\\n\\nÁrea: {{ JSON.parse($('AiAgent').item.json.output).area }}\",\n  \"parse_mode\": \"HTML\"\n}",
+          "options": {}
+        },
+        "id": "4057d73b-43bc-417b-b702-63646bbd6c79",
+        "name": "NotifyLawyer",
+        "position": [
+          368,
+          224
+        ],
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.1
+      },
+      {
+        "parameters": {
+          "url": "={{ $json.body.payload.media.url.replace('http://localhost:80', 'https://agrous-mariamartha.rfhelf.easypanel.host') }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-Api-Key",
+                "value": "161213"
+              }
+            ]
+          },
+          "options": {
+            "response": {}
+          }
+        },
+        "id": "7748c1c8-b4df-437d-9098-e8001a48d68e",
+        "name": "Baixar_Audio_Real",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.1,
+        "position": [
+          -1920,
+          272
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const payload = $input.first().json?.body?.payload || {};\n\n// Isola a busca da chave\nconst keyData = payload._data?.key || payload.data?.key || {};\nconst jidFull = keyData.remoteJidAlt || null;\n\n// Extrai e limpa os dados\n// O /^55/ garante que o 55 só será cortado se for o começo absoluto do número\nconst jidClean = jidFull ? jidFull.replace(/@s\\.whatsapp\\.net$/, '').replace(/^55/, '') : 'ERRO';\nconst jidOnlyNum = jidFull ? jidFull.replace(/\\D/g, '').replace(/^55/, '') : 'ERRO';\n\nreturn [{\n  json: {\n    debug: {\n      jidFull: jidFull || 'NÃO ENCONTRADO',\n      jidClean: jidClean,\n      jidOnlyNum: jidOnlyNum,\n      payloadPath: payload._data ? '_data' : (payload.data ? 'data' : 'indefinido')\n    }\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -1568,
+          -240
+        ],
+        "id": "f65062ea-b33f-4764-b023-d3d60c0e980d",
+        "name": "Code in JavaScript"
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "DetectAudio",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "DetectAudio": {
+        "main": [
+          [
+            {
+              "node": "MergePaths",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Baixar_Audio_Real",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "TranscribeAudio": {
+        "main": [
+          [
+            {
+              "node": "MergeTranscription",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "MergeTranscription": {
+        "main": [
+          [
+            {
+              "node": "MergePaths",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "MergePaths": {
+        "main": [
+          [
+            {
+              "node": "Wait3s",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait3s": {
+        "main": [
+          [
+            {
+              "node": "Code in JavaScript",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "CheckClient": {
+        "main": [
+          [
+            {
+              "node": "RouterClient",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "RouterClient": {
+        "main": [
+          [
+            {
+              "node": "SendFeedbackCustom",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "SendFeedbackCustom",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "SendFeedbackCustom": {
+        "main": [
+          [
+            {
+              "node": "SendFeedback",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AiMemory": {
+        "ai_memory": [
+          [
+            {
+              "node": "AiAgent",
+              "type": "ai_memory",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AiModel": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "AiAgent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AiAgent": {
+        "main": [
+          [
+            {
+              "node": "LimitItems",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "LimitItems": {
+        "main": [
+          [
+            {
+              "node": "IntentSwitch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "IntentSwitch": {
+        "main": [
+          [
+            {
+              "node": "SearchDataJud",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "SendDocsRequest",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "SendEmergencyAlert",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "SendGeneralResponse",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "SearchDataJud": {
+        "main": [
+          [
+            {
+              "node": "SendProcessStatus",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "SendProcessStatus": {
+        "main": [
+          [
+            {
+              "node": "LogInteraction",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "SendDocsRequest": {
+        "main": [
+          [
+            {
+              "node": "LogInteraction",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "SendEmergencyAlert": {
+        "main": [
+          [
+            {
+              "node": "LogInteraction",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "SendGeneralResponse": {
+        "main": [
+          [
+            {
+              "node": "LogInteraction",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "LogInteraction": {
+        "main": [
+          [
+            {
+              "node": "CheckUrgency",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "CheckUrgency": {
+        "main": [
+          [
+            {
+              "node": "NotifyLawyer",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Baixar_Audio_Real": {
+        "main": [
+          [
+            {
+              "node": "TranscribeAudio",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "SendFeedback": {
+        "main": [
+          [
+            {
+              "node": "AiAgent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code in JavaScript": {
+        "main": [
+          [
+            {
+              "node": "CheckClient",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1"
+    },
+    "staticData": null,
+    "meta": null,
+    "pinData": {},
+    "versionId": "4d3b6c4d-7995-4f36-8211-9ceeb6504b35",
+    "activeVersionId": null,
+    "versionCounter": 3,
+    "triggerCount": 0,
+    "shared": [
+      {
+        "updatedAt": "2026-04-02T22:34:48.713Z",
+        "createdAt": "2026-04-02T22:34:48.713Z",
+        "role": "workflow:owner",
+        "workflowId": "ue67IvflZvC6quFr",
+        "projectId": "WU17TM7cWnuA5jJW",
+        "project": {
+          "updatedAt": "2025-06-19T01:48:59.206Z",
+          "createdAt": "2025-06-19T01:39:46.169Z",
+          "id": "WU17TM7cWnuA5jJW",
+          "name": "REGINALDO RIBECHI <desafyo@gmail.com>",
+          "type": "personal",
+          "icon": null,
+          "description": null,
+          "projectRelations": [
+            {
+              "updatedAt": "2025-06-19T01:39:46.169Z",
+              "createdAt": "2025-06-19T01:39:46.169Z",
+              "userId": "3c702b19-eaaa-4647-a02b-bf02d6ee4ce8",
+              "projectId": "WU17TM7cWnuA5jJW",
+              "user": {
+                "updatedAt": "2026-04-02T15:43:31.000Z",
+                "createdAt": "2025-06-19T01:39:45.630Z",
+                "id": "3c702b19-eaaa-4647-a02b-bf02d6ee4ce8",
+                "email": "desafyo@gmail.com",
+                "firstName": "REGINALDO",
+                "lastName": "RIBECHI",
+                "personalizationAnswers": {
+                  "version": "v4",
+                  "personalization_survey_submitted_at": "2025-06-19T01:50:01.453Z",
+                  "personalization_survey_n8n_version": "1.79.3",
+                  "companyIndustryExtended": [
+                    "healthcare"
+                  ],
+                  "companySize": "<20",
+                  "companyType": "other",
+                  "role": "business-owner",
+                  "reportedSource": "google"
+                },
+                "settings": {
+                  "userActivated": true,
+                  "easyAIWorkflowOnboarded": true,
+                  "firstSuccessfulWorkflowId": "7cb22VccRgqWmiie",
+                  "userActivatedAt": 1750815851588,
+                  "npsSurvey": {
+                    "responded": true,
+                    "lastShownAt": 1770314866169
+                  }
+                },
+                "disabled": false,
+                "mfaEnabled": false,
+                "lastActiveAt": "2026-04-02",
+                "isPending": false
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "tags": [],
+    "activeVersion": null
+  }
+}

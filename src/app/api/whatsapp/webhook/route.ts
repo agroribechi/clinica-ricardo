@@ -20,32 +20,39 @@ export async function POST(request: Request) {
 
   const { clientName, message, content, clientPhone, senderPhone, handoff } = payload
   if (!clientPhone || (!content && !message)) {
-    return NextResponse.json({ success: true, message: 'Log salvo.' })
+    return NextResponse.json({ success: true, message: 'Log saved.' })
   }
 
   const normalizedPhone = normalizePhone(clientPhone)
+  const normalizedSender = senderPhone ? normalizePhone(senderPhone) : null
   const isNumericId = normalizedPhone.length > 13
 
-  // Tenta resolver o telefone real se for um ID numérico longo
-  let finalPhone = normalizedPhone
-  let resolvedClientMatch: any = null
+  // 1. Encontrar o dono do número (se houver)
+  let ownerId: string | null = null
+  if (normalizedSender) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('whatsapp_number', normalizedSender)
+      .maybeSingle()
+    if (profile) ownerId = profile.id
+  }
 
+  // 2. Tenta resolver o telefone real se for um ID numérico longo
+  let finalPhone = normalizedPhone
   if (isNumericId) {
-    // Busca lead por esse ID salvo como telefone
     const { data: leadMatch } = await supabase
       .from('leads')
       .select('phone, name')
       .eq('phone', normalizedPhone)
       .limit(1)
       .maybeSingle()
-    
-    // Se encontrou, pelo menos mantém o vínculo (ou podíamos tentar buscar o telefone real em outro lead do mesmo nome)
     if (leadMatch) {
-      console.log(`Resolvido ID ${normalizedPhone} para lead ${leadMatch.name}`)
+      console.log(`Resolved ID ${normalizedPhone} for lead ${leadMatch.name}`)
     }
   }
 
-  // Verifica se é cliente com query pontual
+  // 3. Verifica se é cliente
   const { data: clientMatch } = await supabase
     .from('clients')
     .select('id')
@@ -53,15 +60,28 @@ export async function POST(request: Request) {
     .limit(1)
     .maybeSingle()
 
+  // 4. Upsert Lead (Isso garante que o lead seja criado/atualizado com o dono correto)
+  if (ownerId) {
+    await supabase.from('leads').upsert({
+      name: clientName || 'Novo Lead via WhatsApp',
+      phone: finalPhone,
+      source: 'WhatsApp',
+      owner_id: ownerId,
+      status: 'Novo Lead',
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'phone' })
+  }
+
   const { error } = await supabase.from('whatsapp_messages').insert({
     client_name: clientName || 'Desconhecido',
     client_phone: finalPhone,
-    sender_phone: isValidPhone(senderPhone) ? normalizePhone(senderPhone) : null,
+    sender_phone: normalizedSender,
     content: content || '',
     message: message || '',
     is_read: false,
     is_client: !!clientMatch,
     handoff: handoff || false,
+    owner_id: ownerId, // <--- Relaciona a mensagem ao dono
   })
 
   if (error) {

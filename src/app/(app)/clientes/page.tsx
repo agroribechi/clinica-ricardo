@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
-import { formatDate, formatPhone } from '@/lib/utils'
+import { formatDate, formatPhone, safeFirstChar } from '@/lib/utils'
 import { UserPlus, Search } from 'lucide-react'
 import { ClientSearch } from '@/components/clientes/ClientSearch'
 
@@ -71,7 +71,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(201,147,24,0.1)', border: '1px solid rgba(201,147,24,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 600, color: 'var(--gold-light)', flexShrink: 0 }}>
-                        {c.display_name[0]?.toUpperCase()}
+                        {safeFirstChar(c.display_name)}
                       </div>
                       <Link href={`/clientes/${c.id}`} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: 500, fontSize: '13px' }}
                       >
@@ -83,7 +83,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
                   <td style={{ color: 'var(--text-secondary)', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>
                     {c.phone ? formatPhone(c.phone) : '—'}
                   </td>
-                  <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{formatDate(c.join_date)}</td>
+                  <td style={{ color: 'var(--text-muted)', fontSize: '12px' }} suppressHydrationWarning>{formatDate(c.join_date)}</td>
                   <td>
                     <Link href={`/clientes/${c.id}`} style={{ fontSize: '12px', color: 'var(--gold)', textDecoration: 'none', opacity: 0.7 }}
                     >
