@@ -116,7 +116,7 @@ export default function LeadsPage() {
 
     // Se admin, carregar todos os perfis para o filtro
     if (currentProfile?.role === 'admin') {
-      const { data: p } = await supabase.from('profiles').select('id, display_name, role')
+      const { data: p } = await supabase.from('profiles').select('id, full_name, role')
       setOwners(p || [])
     }
 
@@ -361,7 +361,7 @@ export default function LeadsPage() {
               >
                 <option value="all">Todos os Leads</option>
                 {owners.map(o => (
-                  <option key={o.id} value={o.id}>{o.display_name}</option>
+                  <option key={o.id} value={o.id}>{o.full_name || o.display_name}</option>
                 ))}
               </select>
             </div>

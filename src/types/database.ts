@@ -34,6 +34,7 @@ export type LeadStage = {
   order: number
   color: string
   description?: string | null
+  owner_id?: string | null
 }
 
 export type Lead = {
@@ -43,7 +44,7 @@ export type Lead = {
   phone?: string | null
   source?: string | null
   status: string
-  owner?: string | null
+  owner_id?: string | null
   potential_value?: number
   notes?: string | null
   created_at?: string
@@ -138,9 +139,11 @@ export type Conversation = {
 
 export type Profile = {
   id: string
+  full_name?: string | null
   display_name?: string | null
-  role: 'admin' | 'agent'
+  role: 'admin' | 'agent' | 'producer'
   whatsapp_number?: string | null
+  webhook_url?: string | null
   created_at?: string
   updated_at?: string
 }
