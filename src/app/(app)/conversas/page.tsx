@@ -66,7 +66,7 @@ function ContactPanel({
       notes: form.notes || null,
       source: 'WhatsApp',
       status: firstStage,
-      owner: 'Não atribuído',
+      owner_id: null,
       potential_value: 0,
     })
     setSaving(false)
@@ -160,7 +160,7 @@ function ContactPanel({
                   </div>
                   <FieldRow label="Valor potencial" value={lead.potential_value ? formatCurrency(lead.potential_value) : null} />
                   <FieldRow label="Origem" value={lead.source} />
-                  <FieldRow label="Responsável" value={lead.owner} />
+                  <FieldRow label="Responsável" value={lead.owner_id ? 'Atribuído' : 'Não atribuído'} />
                 </div>
                 <button onClick={() => router.push('/leads')}
                   style={{ marginTop:'8px', width:'100%', padding:'7px', borderRadius:'7px', background:`${leadStage?.color}10`, border:`1px solid ${leadStage?.color}30`, color: leadStage?.color || '#888', fontSize:'12px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:'6px' }}>
@@ -309,7 +309,7 @@ function ConversasContent() {
     const [m, c, l, s] = await Promise.all([
       supabase.from('whatsapp_messages').select('*').order('sent_date', { ascending: false }).limit(300),
       supabase.from('clients').select('id, display_name, phone, email, cpf'),
-      supabase.from('leads').select('id, name, phone, status, source, owner, potential_value'),
+      supabase.from('leads').select('id, name, phone, status, source, owner_id, potential_value'),
       supabase.from('lead_stages').select('*').order('order'),
     ])
     setMessages(m.data || [])
