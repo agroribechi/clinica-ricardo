@@ -360,17 +360,54 @@ function ConversasContent() {
 
   useEffect(() => {
     const ch = supabase.channel('conversas-rt')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' }, p => {
+      // 1. Mensagens: Novas e Atualizações (status lido)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_messages' }, p => {
         const msg = p.new as WhatsAppMessage
-        // Filtro Realtime: Agentes só recebem live updates de seu próprio número
-        if (currentUser?.role !== 'admin' && currentUser?.whatsapp_number) {
-          if (!phonesMatch(msg.sender_phone || '', currentUser.whatsapp_number)) return
+        
+        // Regra de Filtro Realtime
+        if (currentUser?.role !== 'admin') {
+          // Agente: só vê se o sender_phone for o dele
+          if (currentUser?.whatsapp_number && !phonesMatch(msg.sender_phone || '', currentUser.whatsapp_number)) return
+        } else if (selectedAgentId !== 'all') {
+          // Admin Filtrado: só vê se o owner_id ou sender_phone bater com o agente selecionado
+          const agent = allProfiles.find(ap => ap.id === selectedAgentId)
+          const isOwner = msg.owner_id === selectedAgentId
+          const isSender = agent?.whatsapp_number && phonesMatch(msg.sender_phone || '', agent.whatsapp_number)
+          if (!isOwner && !isSender) return
         }
-        setMessages(prev => [msg, ...prev])
+
+        if (p.eventType === 'INSERT') {
+          setMessages(prev => [msg, ...prev])
+        } else if (p.eventType === 'UPDATE') {
+          setMessages(prev => prev.map(m => m.id === msg.id ? msg : m))
+        } else if (p.eventType === 'DELETE') {
+          setMessages(prev => prev.filter(m => m.id !== (p.old as any).id))
+        }
+      })
+      // 2. Leads: CRUD em tempo real
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, p => {
+        if (p.eventType === 'INSERT') {
+          setLeads(prev => [p.new as Lead, ...prev])
+        } else if (p.eventType === 'UPDATE') {
+          setLeads(prev => prev.map(l => l.id === (p.new as Lead).id ? (p.new as Lead) : l))
+        } else if (p.eventType === 'DELETE') {
+          setLeads(prev => prev.filter(l => l.id !== (p.old as any).id))
+        }
+      })
+      // 3. Clientes: CRUD em tempo real
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, p => {
+        if (p.eventType === 'INSERT') {
+          setClients(prev => [p.new as Client, ...prev])
+        } else if (p.eventType === 'UPDATE') {
+          setClients(prev => prev.map(c => c.id === (p.new as Client).id ? (p.new as Client) : c))
+        } else if (p.eventType === 'DELETE') {
+          setClients(prev => prev.filter(c => c.id !== (p.old as any).id))
+        }
       })
       .subscribe()
+    
     return () => { supabase.removeChannel(ch) }
-  }, [currentUser])
+  }, [currentUser, selectedAgentId, allProfiles])
 
   // DB already filters when selectedAgentId !== 'all' — no double-filter needed.
   // For 'all', return everything. The DB query is the source of truth.
