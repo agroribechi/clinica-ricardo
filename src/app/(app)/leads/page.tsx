@@ -98,7 +98,16 @@ export default function LeadsPage() {
     ])
   }
 
-  const load = useCallback(async () => {
+  // Carrega apenas os leads e automações (sem auth)
+  const refreshLeadsData = useCallback(async () => {
+    const { data: l } = await supabase.from('leads').select('*').order('created_at', { ascending: false })
+    const { data: a } = await supabase.from('stage_automations').select('*')
+    setLeads(l || [])
+    setAutomations(a || [])
+  }, [supabase])
+
+  // Inicialização única (Auth + Perfis)
+  const initialize = useCallback(async () => {
     // Pegar usuário atual e seu perfil
     const { data: { user } } = await supabase.auth.getUser()
     let currentProfile = null
@@ -108,9 +117,8 @@ export default function LeadsPage() {
       setCurrentUser(p)
     }
 
-    // Carregar leads (todos se admin)
-    const { data: l } = await supabase.from('leads').select('*').order('created_at', { ascending: false })
-    const { data: a } = await supabase.from('stage_automations').select('*')
+    // Carrega dados iniciais
+    await refreshLeadsData()
 
     // Se admin, carregar todos os perfis para o filtro
     if (currentProfile?.role === 'admin') {
@@ -118,22 +126,23 @@ export default function LeadsPage() {
       setOwners(p || [])
     }
 
-    setLeads(l || [])
-    setAutomations(a || [])
     setLoading(false)
-  }, [supabase])
+  }, [supabase, refreshLeadsData])
+
+  // Função auxiliar para determinar o ID do administrador principal (Master) para estágios compartilhados
+  const getMasterOwnerId = useCallback(() => {
+    const kemila = owners.find(o => o.display_name?.toLowerCase() === 'kemila')
+    const firstAdmin = owners.find(o => o.role === 'admin')
+    return kemila?.id || firstAdmin?.id || currentUser?.id
+  }, [owners, currentUser])
 
   // Busca estágios dinamicamente baseado no proprietário selecionado
   const fetchStagesForOwner = useCallback(async (ownerId: string | 'all') => {
     let targetOwner = ownerId
     
-    // Se "Todos", tentamos encontrar a kemila ou o primeiro admin para carregar as etapas
+    // Se "Todos", usamos o Master Admin para carregar as etapas compartilhadas
     if (ownerId === 'all') {
-      const kemila = owners.find(o => o.display_name?.toLowerCase() === 'kemila')
-      const firstAdmin = owners.find(o => o.role === 'admin')
-      targetOwner = kemila?.id || firstAdmin?.id || currentUser?.id || 'all'
-      
-      // Se ainda for 'all', não busca etapas (espera owners carregar)
+      targetOwner = getMasterOwnerId() || 'all'
       if (targetOwner === 'all') return
     }
 
@@ -144,13 +153,40 @@ export default function LeadsPage() {
       .order('order')
     
     setStages(s || [])
-  }, [supabase, owners, currentUser])
+  }, [supabase, getMasterOwnerId])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { initialize() }, [initialize])
   
   useEffect(() => {
     if (!loading) fetchStagesForOwner(selectedOwnerId)
   }, [selectedOwnerId, loading, fetchStagesForOwner])
+
+  // Realtime para estágios e leads
+  useEffect(() => {
+    const channel = supabase
+      .channel('leads-funnel-realtime')
+      // Sincroniza Estágios
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'lead_stages' 
+      }, () => {
+        fetchStagesForOwner(selectedOwnerId)
+      })
+      // Sincroniza Leads
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'leads' 
+      }, () => {
+        refreshLeadsData() // Recarrega apenas leads e automações, sem tocar no Auth
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase, selectedOwnerId, fetchStagesForOwner, refreshLeadsData])
 
   const fetchNotes = useCallback(async (leadId: string) => {
     setLoadingNotes(true)
@@ -325,7 +361,10 @@ export default function LeadsPage() {
     if (!newLead.name.trim()) return
     if (stages.length === 0) { alert('Crie pelo menos uma etapa antes de adicionar leads.'); return }
     setSaving(true)
-    await supabase.from('leads').insert({
+    
+    console.log('[Funil] Criando lead...', { name: newLead.name, stage: stages[0].name, owner: currentUser?.id })
+
+    const { data, error } = await supabase.from('leads').insert({
       name: newLead.name,
       phone: newLead.phone || null,
       email: newLead.email || null,
@@ -333,12 +372,22 @@ export default function LeadsPage() {
       potential_value: parseFloat(newLead.potential_value) || 0,
       notes: newLead.notes || null,
       status: stages[0].name,
-      owner_id: (await supabase.auth.getUser()).data.user?.id,
-    })
-    setNewLead({ name:'', phone:'', email:'', source:'WhatsApp', potential_value:'', notes:'' })
-    setShowLeadForm(false)
+      owner_id: currentUser?.id || null,
+    }).select().single()
+
+    if (error) {
+      console.error('[Funil] Erro ao criar lead:', error)
+      alert(`Erro ao criar lead: ${error.message}`)
+    } else {
+      console.log('[Funil] Lead criado com sucesso:', data)
+      setNewLead({ name:'', phone:'', email:'', source:'WhatsApp', potential_value:'', notes:'' })
+      setShowLeadForm(false)
+      // Atualização imediata local para UX rápida
+      setLeads(prev => [data as Lead, ...prev])
+    }
+    
     setSaving(false)
-    load()
+    refreshLeadsData()
   }
 
   async function handleAddStage(e: React.FormEvent) {
@@ -346,10 +395,21 @@ export default function LeadsPage() {
     if (!newStage.name.trim() || saving) return
     setSaving(true)
     
-    // Define dono da etapa (medbio se estiver em visão geral, ou o selecionado/atual)
-    let ownerId = selectedOwnerId
-    if (ownerId === 'all') {
-      ownerId = 'f6aef97d-b0a7-4d0d-b5e1-0bd388dc3ff9' // medbio
+    // Define dono da etapa (Master Admin se estiver em visão geral, ou o selecionado)
+    let ownerId = selectedOwnerId === 'all' ? getMasterOwnerId() : selectedOwnerId
+    
+    if (!ownerId) {
+      alert('Não foi possível determinar o proprietário da etapa. Aguarde o carregamento ou selecione um agente.')
+      setSaving(false)
+      return
+    }
+
+    // Verifica se já existe uma etapa com esse nome (case-insensitive)
+    const duvida = stages.find(s => s.name.toLowerCase() === newStage.name.toLowerCase())
+    if (duvida) {
+      alert('Já existe uma etapa com este nome para este proprietário.')
+      setSaving(false)
+      return
     }
 
     const { data, error } = await supabase.from('lead_stages').insert({
@@ -359,7 +419,13 @@ export default function LeadsPage() {
       owner_id: ownerId
     }).select().single()
 
-    if (!error && data) {
+    if (error) {
+      if (error.code === '23505') { // Código Postgres para Unique Violation
+        alert('Este nome de etapa já existe. Escolha outro nome.')
+      } else {
+        console.error('Erro ao adicionar etapa:', error)
+      }
+    } else if (data) {
       setStages([...stages, data as LeadStage])
       setNewStage({ name:'', color: STAGE_COLORS[0] })
       setShowStageForm(false)
@@ -451,15 +517,20 @@ export default function LeadsPage() {
           <div style={{ display:'flex', gap:'8px', flexWrap:'wrap', justifyContent:'center', marginTop:'1rem' }}>
             {['Novo Lead','Contato Feito','Interesse Confirmado','Proposta Enviada','Convertido'].map((sugestao, i) => (
               <button key={sugestao} onClick={async () => {
-                let ownerId = selectedOwnerId
-                if (ownerId === 'all') ownerId = 'f6aef97d-b0a7-4d0d-b5e1-0bd388dc3ff9'
-                
-                await supabase.from('lead_stages').insert({ 
+                const ownerId = selectedOwnerId === 'all' ? getMasterOwnerId() : selectedOwnerId
+                if (!ownerId) return
+
+                const { error } = await supabase.from('lead_stages').insert({ 
                   name: sugestao, 
                   color: STAGE_COLORS[i % STAGE_COLORS.length], 
                   order: i,
                   owner_id: ownerId
                 })
+                
+                if (error && error.code !== '23505') {
+                  console.error('Erro ao inserir sugestão:', error)
+                }
+                
                 fetchStagesForOwner(selectedOwnerId)
               }} style={{ padding:'5px 14px', borderRadius:'6px', background:'rgba(201,147,24,0.06)', border:'1px solid rgba(201,147,24,0.15)', color:'#888', fontSize:'12px', cursor:'pointer' }}>
                 + {sugestao}
@@ -854,7 +925,7 @@ export default function LeadsPage() {
             } else {
               await supabase.from('stage_automations').insert({ ...data, stage_id: showAutomation.id })
             }
-            load()
+              refreshLeadsData()
             setShowAutomation(null)
           }}
         />

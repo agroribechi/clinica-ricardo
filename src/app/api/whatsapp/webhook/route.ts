@@ -63,6 +63,16 @@ export async function POST(request: Request) {
     }
   }
 
+  // 2.2 Se ainda não temos ownerId (é mensagem do cliente), busca o dono do lead
+  if (!ownerId) {
+    const { data: currentLead } = await supabase
+      .from('leads')
+      .select('owner_id')
+      .eq('phone', finalPhone)
+      .maybeSingle()
+    if (currentLead) ownerId = currentLead.owner_id
+  }
+
   // 3. Verifica se é cliente
   const { data: clientMatch } = await supabase
     .from('clients')
@@ -83,22 +93,48 @@ export async function POST(request: Request) {
     }, { onConflict: 'phone' })
   }
 
-  const { error } = await supabase.from('whatsapp_messages').insert({
+  const { data: insertedMsg, error } = await supabase.from('whatsapp_messages').insert({
     client_name: clientName || 'Desconhecido',
     client_phone: finalPhone,
     sender_phone: normalizedSender,
-    content: content || '',
-    message: message || '',
+    content: (content || message || '').toString(),
+    message: (message || content || '').toString(),
     is_read: false,
     is_client: !!clientMatch,
     handoff: handoff || false,
     owner_id: ownerId, 
-  })
+  }).select('*').maybeSingle()
 
   if (error) {
     console.error('Webhook error:', error.message)
     return NextResponse.json({ success: false, error: 'Erro ao salvar.' }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true })
+  // Envia broadcast manual para garantir entrega imediata
+  if (insertedMsg) {
+    try {
+      const channel = supabase.channel('conversas-v4')
+      await new Promise<void>((resolve, reject) => {
+        channel.subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            const res = await channel.send({
+              type: 'broadcast',
+              event: 'message_inserted',
+              payload: insertedMsg
+            })
+            console.log('[Webhook] Broadcast enviado com status:', res)
+            // Remove o canal após o envio para não vazar recursos
+            supabase.removeChannel(channel)
+            resolve()
+          } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+            reject(new Error(`Falha ao assinar canal: ${status}`))
+          }
+        })
+      })
+    } catch (e) {
+      console.error('[Webhook] Erro no fluxo de broadcast:', e)
+    }
+  }
+
+  return NextResponse.json({ success: true, id: insertedMsg?.id })
 }

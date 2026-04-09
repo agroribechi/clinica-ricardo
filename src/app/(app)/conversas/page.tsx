@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { normalizePhone, phonesMatch, formatDate, formatCurrency, formatWhatsAppLink } from '@/lib/utils'
@@ -291,10 +291,12 @@ function ContactPanel({
 }
 
 // ─── Página principal ──────────────────────────────────────────────────────────
+const supabaseClient = createClient()
+
 function ConversasContent() {
   const searchParams = useSearchParams()
   const phoneFromUrl = searchParams.get('phone')
-  const supabase = createClient()
+  const supabase = supabaseClient
 
   const [messages, setMessages] = useState<WhatsAppMessage[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -308,6 +310,14 @@ function ConversasContent() {
   const [currentUser, setCurrentUser] = useState<Profile | null>(null)
   const [allProfiles, setAllProfiles] = useState<Profile[]>([])
   const [selectedAgentId, setSelectedAgentId] = useState<string | 'all'>('all')
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Função para scroll instantâneo para o final
+  const scrollToBottom = useCallback(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [])
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -356,24 +366,58 @@ function ConversasContent() {
     setLoading(false)
   }, [selectedAgentId])
 
-  useEffect(() => { load() }, [load])
+  const currentUserRef = useRef(currentUser)
+  const selectedAgentIdRef = useRef(selectedAgentId)
+  const allProfilesRef = useRef(allProfiles)
 
   useEffect(() => {
-    const ch = supabase.channel('conversas-rt')
-      // 1. Mensagens: Novas e Atualizações (status lido)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_messages' }, p => {
+    load()
+  }, [load])
+
+  useEffect(() => {
+    currentUserRef.current = currentUser
+    selectedAgentIdRef.current = selectedAgentId
+    allProfilesRef.current = allProfiles
+  }, [currentUser, selectedAgentId, allProfiles])
+
+  useEffect(() => {
+    const ch = supabase.channel('conversas-v4', {
+      config: {
+        broadcast: { self: true }
+      }
+    })
+    console.log('[RT-DEBUG] Canal criado com self-broadcast:', ch)
+
+    if (ch && typeof ch.subscribe === 'function') {
+      // 1. Mensagens
+      ch.on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_messages' }, p => {
+        console.log('[RT-VERBOSE] Chegou no PostgresChanges:', p.eventType)
         const msg = p.new as WhatsAppMessage
         
-        // Regra de Filtro Realtime
-        if (currentUser?.role !== 'admin') {
-          // Agente: só vê se o sender_phone for o dele
-          if (currentUser?.whatsapp_number && !phonesMatch(msg.sender_phone || '', currentUser.whatsapp_number)) return
-        } else if (selectedAgentId !== 'all') {
-          // Admin Filtrado: só vê se o owner_id ou sender_phone bater com o agente selecionado
-          const agent = allProfiles.find(ap => ap.id === selectedAgentId)
-          const isOwner = msg.owner_id === selectedAgentId
-          const isSender = agent?.whatsapp_number && phonesMatch(msg.sender_phone || '', agent.whatsapp_number)
-          if (!isOwner && !isSender) return
+        const currUser = currentUserRef.current
+        const selAgentId = selectedAgentIdRef.current
+        const profiles = allProfilesRef.current
+
+        // Se for Admin e estiver em "Todos", não filtra nada
+        if (currUser?.role === 'admin' && selAgentId === 'all') {
+          console.log('[RT] Admin All - Aceitando mensagem')
+        } else {
+          if (currUser?.role !== 'admin') {
+            const isOwner = msg.owner_id === currUser?.id
+            const isSender = currUser?.whatsapp_number && phonesMatch(msg.sender_phone || '', currUser.whatsapp_number)
+            if (!isOwner && !isSender) {
+              console.log('[RT] Bloqueado por filtro de Agente')
+              return
+            }
+          } else if (selAgentId !== 'all') {
+            const agent = profiles.find(ap => ap.id === selAgentId)
+            const isOwner = msg.owner_id === selAgentId
+            const isAgentNumber = agent?.whatsapp_number && phonesMatch(msg.sender_phone || '', agent.whatsapp_number)
+            if (!isOwner && !isAgentNumber) {
+              console.log('[RT] Bloqueado por filtro de seleção de Admin')
+              return
+            }
+          }
         }
 
         if (p.eventType === 'INSERT') {
@@ -384,67 +428,139 @@ function ConversasContent() {
           setMessages(prev => prev.filter(m => m.id !== (p.old as any).id))
         }
       })
-      // 2. Leads: CRUD em tempo real
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, p => {
+
+      // 2. Leads (Simplificado logs)
+      ch.on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, p => {
+        console.log('[RT-VERBOSE] Lead alterado:', p.eventType)
         if (p.eventType === 'INSERT') {
           setLeads(prev => [p.new as Lead, ...prev])
         } else if (p.eventType === 'UPDATE') {
-          setLeads(prev => prev.map(l => l.id === (p.new as Lead).id ? (p.new as Lead) : l))
+          setLeads(prev => prev.map(l => l.id === (p.new as Lead).id ? (p.new as Lead) : l) as Lead[])
         } else if (p.eventType === 'DELETE') {
           setLeads(prev => prev.filter(l => l.id !== (p.old as any).id))
         }
       })
-      // 3. Clientes: CRUD em tempo real
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, p => {
+
+      // 3. Clientes
+      ch.on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, p => {
+        console.log('[RT-VERBOSE] Cliente alterado:', p.eventType)
         if (p.eventType === 'INSERT') {
           setClients(prev => [p.new as Client, ...prev])
         } else if (p.eventType === 'UPDATE') {
-          setClients(prev => prev.map(c => c.id === (p.new as Client).id ? (p.new as Client) : c))
+          setClients(prev => prev.map(c => c.id === (p.new as Client).id ? (p.new as Client) : c) as Client[])
         } else if (p.eventType === 'DELETE') {
           setClients(prev => prev.filter(c => c.id !== (p.old as any).id))
         }
       })
-      .subscribe()
+
+      // 4. Broadcast
+      ch.on('broadcast', { event: 'message_inserted' }, (payload: any) => {
+        const msg = (payload && payload.payload) ? payload.payload : payload
+        console.log('[RT-VERBOSE] Chegou no Broadcast:', msg.id)
+        
+        if (!msg || !msg.id) return
+
+        const currUser = currentUserRef.current
+        const selAgentId = selectedAgentIdRef.current
+        const profiles = allProfilesRef.current
+
+        // Lógica de filtro idêntica para consistência
+        if (currUser?.role === 'admin' && selAgentId === 'all') {
+             // Passa
+        } else if (currUser?.role !== 'admin') {
+          const isOwner = msg.owner_id === currUser?.id
+          const isSender = currUser?.whatsapp_number && phonesMatch(msg.sender_phone || '', currUser.whatsapp_number)
+          if (!isOwner && !isSender) return
+        } else if (selAgentId !== 'all') {
+          const agent = profiles.find(ap => ap.id === selAgentId)
+          const isOwner = msg.owner_id === selAgentId
+          const isAgentNumber = agent?.whatsapp_number && phonesMatch(msg.sender_phone || '', agent.whatsapp_number)
+          if (!isOwner && !isAgentNumber) return
+        }
+
+        setMessages(prev => {
+          if (prev.some(m => m.id === msg.id)) return prev
+          console.log('[RT] Adicionando nova mensagem via Broadcast na tela')
+          return [msg, ...prev]
+        })
+      })
+
+      ch.subscribe((status) => {
+        console.log('[RT] Status da inscrição:', status)
+      })
+    } else {
+      console.error('[RT-ERROR] ch.subscribe não é uma função! Objeto retornado:', ch)
+    }
     
-    return () => { supabase.removeChannel(ch) }
-  }, [currentUser, selectedAgentId, allProfiles])
+    // Injeta ferramenta de autoteste no console
+    (window as any).testRT = () => {
+      const selId = selectedAgentIdRef.current
+      console.log('[RT-TEST] Enviando sinal de teste para Agente:', selId)
+      if (!ch) return
+      ch.send({
+        type: 'broadcast',
+        event: 'message_inserted',
+        payload: { 
+          id: 'test-' + Date.now(), 
+          content: 'Teste de conexão Realtime ✅', 
+          message: 'Teste de conexão Realtime ✅', 
+          is_client: true, 
+          client_phone: '12345', 
+          sender_phone: '12345',
+          owner_id: selId === 'all' ? null : selId,
+          sent_date: new Date().toISOString() 
+        }
+      }).then(() => console.log('[RT-TEST] Sinal enviado.'))
+    }
+
+    return () => { 
+      (window as any).testRT = undefined
+      if (ch) supabase.removeChannel(ch) 
+    }
+  }, []) // Dependência vazia para nunca fechar a conexão
 
   // DB already filters when selectedAgentId !== 'all' — no double-filter needed.
   // For 'all', return everything. The DB query is the source of truth.
   const filteredMessages = useMemo(() => messages, [messages])
 
   const conversations = useMemo<Conversation[]>(() => {
+    console.log('[UI-DEBUG] Processando mensagens para a lista:', filteredMessages.length)
     const map = new Map<string, Conversation>()
+    
     filteredMessages.forEach(msg => {
       const phone = normalizePhone(msg.client_phone)
       if (!phone) return
+      
       const existing = map.get(phone)
       if (!existing) {
         map.set(phone, {
-          phone, display_name: msg.client_name || phone,
+          phone, 
+          display_name: msg.client_name || phone,
           last_message_at: msg.sent_date,
           last_message: msg.content || msg.message || '',
-          messages: [msg], unread_count: msg.is_read ? 0 : 1,
-          is_client: msg.is_client, handoff: msg.handoff,
+          messages: [msg], 
+          unread_count: msg.is_read ? 0 : 1,
+          is_client: msg.is_client, 
+          handoff: msg.handoff,
           sender_phone: msg.sender_phone,
         })
       } else {
-        const isPhysicalDuplicate = existing.messages.some(m => 
-          m.message === msg.message && 
-          Math.abs(new Date(m.sent_date).getTime() - new Date(msg.sent_date).getTime()) < 15000
+        // Evita duplicatas ID ou conteúdo/tempo
+        const isDuplicate = existing.messages.some(m => 
+          m.id === msg.id || (m.message === msg.message && Math.abs(new Date(m.sent_date).getTime() - new Date(msg.sent_date).getTime()) < 5000)
         )
-        if (!isPhysicalDuplicate && !existing.messages.some(m => m.id === msg.id)) {
-          existing.messages.push(msg)
-          if (new Date(msg.sent_date) > new Date(existing.last_message_at)) {
-            existing.last_message_at = msg.sent_date
-            existing.last_message = msg.content || msg.message || ''
-          }
-        }
-        if (!msg.is_read) existing.unread_count++
-        if (msg.handoff) existing.handoff = true
-        // Atualiza sender_phone se for mais recente
-        if (new Date(msg.sent_date) > new Date(existing.last_message_at)) {
-          existing.sender_phone = msg.sender_phone
+        
+        if (!isDuplicate) {
+          // Criamos uma nova versão da conversa para garantir que o React perceba a mudança
+          map.set(phone, {
+            ...existing,
+            messages: [...existing.messages, msg],
+            last_message_at: new Date(msg.sent_date) > new Date(existing.last_message_at) ? msg.sent_date : existing.last_message_at,
+            last_message: new Date(msg.sent_date) > new Date(existing.last_message_at) ? (msg.content || msg.message || '') : existing.last_message,
+            sender_phone: new Date(msg.sent_date) > new Date(existing.last_message_at) ? msg.sender_phone : existing.sender_phone,
+            unread_count: !msg.is_read ? existing.unread_count + 1 : existing.unread_count,
+            handoff: existing.handoff || msg.handoff
+          })
         }
       }
     })
@@ -457,8 +573,6 @@ function ConversasContent() {
       const clientMatch = clients.find(c => phonesMatch(c.phone, conv.phone))
       const leadMatch = leads.find(l => phonesMatch(l.phone, conv.phone))
       const stage = leadMatch ? stages.find(s => s.name === leadMatch.status) : null
-      
-      // Encontra o agente pelo sender_phone da conversa
       const agentMatch = allProfiles.find(p => p.whatsapp_number && phonesMatch(p.whatsapp_number, conv.sender_phone))
       
       return {
@@ -470,8 +584,9 @@ function ConversasContent() {
       }
     })
 
+    console.log('[UI-DEBUG] Total de conversas processadas:', enriched.length)
     return enriched
-  }, [filteredMessages, clients, leads, stages, allProfiles])
+  }, [filteredMessages, clients, leads, stages, allProfiles, filter])
 
   const filtered = useMemo(() => {
     switch (filter) {
@@ -500,7 +615,16 @@ function ConversasContent() {
       await supabase.from('whatsapp_messages').update({ is_read: true }).in('id', unreadIds)
       setMessages(p => p.map(m => unreadIds.includes(m.id) ? { ...m, is_read: true } : m))
     }
+    // Scroll ao selecionar conversa
+    setTimeout(scrollToBottom, 50)
   }
+
+  // Auto-scroll quando novas mensagens chegam na conversa selecionada
+  useEffect(() => {
+    if (selected) {
+      scrollToBottom()
+    }
+  }, [selected?.messages.length, scrollToBottom])
 
   async function deleteConv() {
     if (!deleteTarget) return
@@ -684,7 +808,10 @@ function ConversasContent() {
           </div>
 
           {/* Mensagens */}
-          <div style={{ flex:1, overflowY:'auto', padding:'1.25rem', display:'flex', flexDirection:'column', gap:'0.875rem' }}>
+          <div 
+            ref={scrollRef}
+            style={{ flex:1, overflowY:'auto', padding:'1.25rem', display:'flex', flexDirection:'column', gap:'0.875rem' }}
+          >
             {[...selected.messages].reverse().map(msg => (
               <div key={msg.id} style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
                 {/* Mensagem do Cliente (agora em msg.message) */}

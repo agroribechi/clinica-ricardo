@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { X, Loader2 } from 'lucide-react'
 
@@ -12,6 +12,7 @@ export function WhatsAppChatModal({ phone, onClose }: WhatsAppChatModalProps) {
   const [messages, setMessages] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     async function loadChat() {
@@ -47,8 +48,9 @@ export function WhatsAppChatModal({ phone, onClose }: WhatsAppChatModalProps) {
   }, [phone])
 
   useEffect(() => {
-    const el = document.getElementById('chat-scroll')
-    if (el) el.scrollTop = el.scrollHeight
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
   }, [messages])
 
   return (
@@ -62,7 +64,10 @@ export function WhatsAppChatModal({ phone, onClose }: WhatsAppChatModalProps) {
           <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:'none', color:'#888', cursor:'pointer', padding:'8px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center' }}><X size={20} /></button>
         </div>
 
-        <div id="chat-scroll" style={{ flex:1, overflowY:'auto', padding:'1.5rem', display:'flex', flexDirection:'column', gap:'0.75rem', backgroundImage:'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.03) 1px, transparent 0)', backgroundSize:'24px 24px' }}>
+        <div 
+          ref={scrollRef}
+          style={{ flex:1, overflowY:'auto', padding:'1.5rem', display:'flex', flexDirection:'column', gap:'0.75rem', backgroundImage:'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.03) 1px, transparent 0)', backgroundSize:'24px 24px' }}
+        >
           {loading ? (
             <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}><Loader2 className="animate-spin" color="#666" /></div>
           ) : messages.length === 0 ? (
