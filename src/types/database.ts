@@ -91,6 +91,7 @@ export type WhatsAppMessage = {
   client_name: string
   client_phone: string
   sender_phone?: string | null
+  owner_id?: string | null
   content: string
   message: string
   sent_date: string
