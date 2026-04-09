@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { normalizePhone } from '@/lib/utils'
 
 /**
  * Verifica se o usuário atual é um administrador
@@ -130,7 +131,7 @@ export async function createUser(formData: FormData) {
     .from('profiles')
     .update({ 
       role, 
-      whatsapp_number: whatsapp || null,
+      whatsapp_number: normalizePhone(whatsapp) || null,
       display_name: name,
       webhook_url: webhook || null
     })
@@ -152,7 +153,7 @@ export async function updateProfile(userId: string, data: any) {
   const updates: any = {}
   if (data.role !== undefined) updates.role = data.role
   if (data.display_name !== undefined) updates.display_name = data.display_name
-  if (data.whatsapp_number !== undefined) updates.whatsapp_number = data.whatsapp_number
+  if (data.whatsapp_number !== undefined) updates.whatsapp_number = normalizePhone(data.whatsapp_number) || null
   if (data.webhook_url !== undefined) updates.webhook_url = data.webhook_url
 
   const { error } = await supabase

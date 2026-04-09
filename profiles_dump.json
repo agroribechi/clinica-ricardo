@@ -1,0 +1,32 @@
+[
+  {
+    "id": "661af76e-00a1-4e1b-83ed-3e0c2ca849f2",
+    "display_name": "Admin Inicial",
+    "whatsapp_number": null
+  },
+  {
+    "id": "f6aef97d-b0a7-4d0d-b5e1-0bd388dc3ff9",
+    "display_name": "medbio",
+    "whatsapp_number": null
+  },
+  {
+    "id": "3cf768d8-5c52-4954-a6ce-21ded32a9531",
+    "display_name": "Agent Test",
+    "whatsapp_number": null
+  },
+  {
+    "id": "57d3ce63-a1e3-4e53-9a21-f3c16075df8b",
+    "display_name": "ricardo ribechi",
+    "whatsapp_number": null
+  },
+  {
+    "id": "55498450-2620-44ac-b2cd-88d67ba34f19",
+    "display_name": "kemila",
+    "whatsapp_number": null
+  },
+  {
+    "id": "731174e7-4f86-41ab-8d09-6c8150ce16e2",
+    "display_name": "Reh",
+    "whatsapp_number": "4488202222"
+  }
+]

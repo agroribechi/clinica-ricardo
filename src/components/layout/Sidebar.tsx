@@ -29,9 +29,11 @@ export function Sidebar({ clinicName = 'Med Bio' }: { clinicName?: string }) {
 
   useEffect(() => {
     async function loadProfile() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      // getSession() doesn't acquire the navigator.lock — avoids contention
+      // with other concurrent getUser() calls (e.g. conversas/page.tsx)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user) {
+        const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
         setProfile(data)
       }
     }

@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase/server'
-
-const normalizePhone = (phone: string): string => {
-  if (!phone) return ''
-  return phone.split('@')[0].replace(/\D/g, '')
-}
+import { normalizePhone } from '@/lib/utils'
 
 const isValidPhone = (phone: string): boolean => normalizePhone(phone).length >= 8
 
@@ -18,7 +14,22 @@ export async function POST(request: Request) {
   // Sempre loga
   await supabase.from('n8n_logs').insert({ data: payload, is_read: false })
 
-  const { clientName, message, content, clientPhone, senderPhone, handoff } = payload
+  // n8n envia payload como ARRAY [ {...} ] — normalizamos para objeto
+  const item = Array.isArray(payload) ? payload[0] : payload
+
+  // Log completo para debug — REMOVER após confirmar funcionamento
+  console.log('[WEBHOOK] payload keys:', Object.keys(item || {}))
+  console.log('[WEBHOOK] sender_phone raw:', item?.sender_phone, '| senderPhone:', item?.senderPhone)
+  console.log('[WEBHOOK] clientPhone raw:', item?.clientPhone, '| client_phone:', item?.client_phone)
+
+  // Suporta snake_case (n8n padrão) e camelCase
+  const clientName = item?.clientName || item?.client_name
+  const message    = item?.message
+  const content    = item?.content
+  const clientPhone  = item?.clientPhone  || item?.client_phone
+  const senderPhone  = item?.senderPhone  || item?.sender_phone
+  const handoff      = item?.handoff ?? false
+
   if (!clientPhone || (!content && !message)) {
     return NextResponse.json({ success: true, message: 'Log saved.' })
   }
@@ -81,7 +92,7 @@ export async function POST(request: Request) {
     is_read: false,
     is_client: !!clientMatch,
     handoff: handoff || false,
-    owner_id: ownerId, // <--- Relaciona a mensagem ao dono
+    owner_id: ownerId, 
   })
 
   if (error) {

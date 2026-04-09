@@ -307,7 +307,7 @@ function ConversasContent() {
   const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null)
   const [currentUser, setCurrentUser] = useState<Profile | null>(null)
   const [allProfiles, setAllProfiles] = useState<Profile[]>([])
-  const [selectedAgentPhone, setSelectedAgentPhone] = useState<string | 'all'>('all')
+  const [selectedAgentId, setSelectedAgentId] = useState<string | 'all'>('all')
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -320,12 +320,26 @@ function ConversasContent() {
     setCurrentUser(myProfile || null)
     setAllProfiles(profiles || [])
 
-    // 2. Prepara a query de mensagens com filtro de isolamento
-    let msgQuery = supabase.from('whatsapp_messages').select('*').order('sent_date', { ascending: false }).limit(300)
+    // 2. Prepara a query de mensagens
+    let msgQuery = supabase.from('whatsapp_messages').select('*').order('sent_date', { ascending: false }).limit(500)
     
-    // Se for agente e tiver número, isola por sender_phone
-    if (myProfile?.role !== 'admin' && myProfile?.whatsapp_number) {
-      msgQuery = msgQuery.eq('sender_phone', myProfile.whatsapp_number)
+    if (myProfile?.role !== 'admin' && myProfile?.id) {
+      // Agente: filtra pelas suas próprias mensagens via owner_id (principal) ou sender_phone (fallback)
+      const myPhone = normalizePhone(myProfile.whatsapp_number)
+      const orFilter = myPhone
+        ? `owner_id.eq.${myProfile.id},sender_phone.eq.${myPhone}`
+        : `owner_id.eq.${myProfile.id}`
+      msgQuery = msgQuery.or(orFilter)
+    } else if (myProfile?.role === 'admin' && selectedAgentId !== 'all') {
+      // Admin filtrando por agente específico — busca por owner_id E sender_phone (union)
+      const agentProfile = profiles?.find(p => p.id === selectedAgentId)
+      if (agentProfile) {
+        const agentPhone = normalizePhone(agentProfile.whatsapp_number)
+        const orFilter = agentPhone
+          ? `owner_id.eq.${agentProfile.id},sender_phone.eq.${agentPhone}`
+          : `owner_id.eq.${agentProfile.id}`
+        msgQuery = msgQuery.or(orFilter)
+      }
     }
 
     const [m, c, l, s] = await Promise.all([
@@ -340,7 +354,7 @@ function ConversasContent() {
     setLeads(l.data || [])
     setStages(s.data || [])
     setLoading(false)
-  }, [])
+  }, [selectedAgentId])
 
   useEffect(() => { load() }, [load])
 
@@ -358,12 +372,9 @@ function ConversasContent() {
     return () => { supabase.removeChannel(ch) }
   }, [currentUser])
 
-  const filteredMessages = useMemo(() => {
-    if (currentUser?.role === 'admin' && selectedAgentPhone !== 'all') {
-      return messages.filter(msg => phonesMatch(msg.sender_phone || '', selectedAgentPhone))
-    }
-    return messages
-  }, [messages, currentUser, selectedAgentPhone])
+  // DB already filters when selectedAgentId !== 'all' — no double-filter needed.
+  // For 'all', return everything. The DB query is the source of truth.
+  const filteredMessages = useMemo(() => messages, [messages])
 
   const conversations = useMemo<Conversation[]>(() => {
     const map = new Map<string, Conversation>()
@@ -510,13 +521,13 @@ function ConversasContent() {
             {/* Filtro de Agente (Admin Only) */}
             {currentUser?.role === 'admin' && (
               <select 
-                value={selectedAgentPhone}
-                onChange={e => setSelectedAgentPhone(e.target.value)}
+                value={selectedAgentId}
+                onChange={e => setSelectedAgentId(e.target.value)}
                 style={{ padding:'4px 8px', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'6px', color:'#7a7060', fontSize:'10px', outline:'none', cursor:'pointer', maxWidth:'120px' }}
               >
                 <option value="all">Filtro Agente</option>
-                {allProfiles.filter(p => p.whatsapp_number).map(p => (
-                  <option key={p.id} value={p.whatsapp_number!}>{p.display_name || 'Sem nome'}</option>
+                {allProfiles.map(p => (
+                  <option key={p.id} value={p.id}>{p.display_name || p.full_name || 'Sem nome'}</option>
                 ))}
               </select>
             )}
