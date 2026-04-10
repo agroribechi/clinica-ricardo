@@ -101,6 +101,12 @@ export async function POST(request: Request) {
     }, { onConflict: 'phone' })
   }
 
+  // 3. Determina se é mensagem de cliente/lead ou interna (agente)
+  // Se o ownerId foi encontrado via profiles (whatsapp_number), significa que um AGENTE enviou.
+  // Se não foi encontrado via profiles, a mensagem veio de FORA (cliente/lead).
+  const isMessageFromAgent = !!ownerId && !!normalizedSender && await supabase.from('profiles').select('id').eq('whatsapp_number', normalizedSender).maybeSingle().then(r => !!r.data)
+  const isClientMessage = !isMessageFromAgent
+
   const msgContent = (content || message || '').toString()
 
   const { data: insertedMsg, error } = await supabase.from('whatsapp_messages').insert({
@@ -108,11 +114,12 @@ export async function POST(request: Request) {
     client_phone: finalPhone,
     sender_phone: normalizedSender,
     content: msgContent,
-    message: msgContent, // Retrocompatibilidade (coluna message)
+    message: msgContent, // Retrocompatibilidade
     is_read: false,
-    is_client: !!clientMatch,
+    is_client: isClientMessage,
     handoff: handoff || false,
     owner_id: ownerId, 
+    sent_date: new Date().toISOString()
   }).select('*').maybeSingle()
 
   if (error) {

@@ -334,14 +334,14 @@ function ConversasContent() {
     let msgQuery = supabase.from('whatsapp_messages').select('*').order('sent_date', { ascending: false }).limit(500)
     
     if (myProfile?.role !== 'admin' && myProfile?.id) {
-      // Agente: filtra pelas suas próprias mensagens via owner_id (principal) ou sender_phone (fallback)
+      // Agente: vê mensagens delas (como owner_id) OU onde remitente é o agente OU mensagens de clientes para elas
       const myPhone = normalizePhone(myProfile.whatsapp_number)
       const orFilter = myPhone
         ? `owner_id.eq.${myProfile.id},sender_phone.eq.${myPhone}`
         : `owner_id.eq.${myProfile.id}`
       msgQuery = msgQuery.or(orFilter)
     } else if (myProfile?.role === 'admin' && selectedAgentId !== 'all') {
-      // Admin filtrando por agente específico — busca por owner_id E sender_phone (union)
+      // Admin filtrando por agente - similar à lógica do agente
       const agentProfile = profiles?.find(p => p.id === selectedAgentId)
       if (agentProfile) {
         const agentPhone = normalizePhone(agentProfile.whatsapp_number)
@@ -350,6 +350,9 @@ function ConversasContent() {
           : `owner_id.eq.${agentProfile.id}`
         msgQuery = msgQuery.or(orFilter)
       }
+    } else {
+      // Admin selecionou "Todos": Mostra absolutamente tudo sem filtro
+      console.log('[Dashboard] Admin em Todos: Sem filtros de mensagem')
     }
 
     const [m, c, l, s] = await Promise.all([
@@ -405,16 +408,22 @@ function ConversasContent() {
           if (currUser?.role !== 'admin') {
             const isOwner = msg.owner_id === currUser?.id
             const isSender = currUser?.whatsapp_number && phonesMatch(msg.sender_phone || '', currUser.whatsapp_number)
-            if (!isOwner && !isSender) {
-              console.log('[RT] Bloqueado por filtro de Agente')
+            
+            // Permite mensagens onde o usuário é o dono, o remetente, 
+            // OU se for uma mensagem de cliente (para evitar perda de mensagens não atribuídas)
+            if (!isOwner && !isSender && !msg.is_client) {
+              console.log('[RT] Bloqueado por filtro de Agente (Apenas saídas de outros)')
               return
             }
           } else if (selAgentId !== 'all') {
             const agent = profiles.find(ap => ap.id === selAgentId)
             const isOwner = msg.owner_id === selAgentId
             const isAgentNumber = agent?.whatsapp_number && phonesMatch(msg.sender_phone || '', agent.whatsapp_number)
-            if (!isOwner && !isAgentNumber) {
-              console.log('[RT] Bloqueado por filtro de seleção de Admin')
+            
+            // Administrador: Permite se for do agente selecionado OU se for mensagem de cliente 
+            // (que pode estar chegando sem dono ainda)
+            if (!isOwner && !isAgentNumber && !msg.is_client) {
+              console.log('[RT] Bloqueado por filtro de seleção de Admin (Apenas saídas de outros)')
               return
             }
           }
