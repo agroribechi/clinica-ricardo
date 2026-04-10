@@ -81,24 +81,34 @@ export async function POST(request: Request) {
     .limit(1)
     .maybeSingle()
 
-  // 4. Upsert Lead (Isso garante que o lead seja criado/atualizado com o dono correto)
+  // 4. Upsert Lead (Garante que o lead exista e tenha o dono correto)
   if (ownerId) {
+    // Busca o ID da etapa inicial "Novo Lead" para integridade estrutural
+    const { data: initialStage } = await supabase
+      .from('lead_stages')
+      .select('id')
+      .eq('name', 'Novo Lead')
+      .maybeSingle()
+
     await supabase.from('leads').upsert({
       name: clientName || 'Novo Lead via WhatsApp',
       phone: finalPhone,
       source: 'WhatsApp',
       owner_id: ownerId,
       status: 'Novo Lead',
+      stage_id: initialStage?.id,
       updated_at: new Date().toISOString()
     }, { onConflict: 'phone' })
   }
+
+  const msgContent = (content || message || '').toString()
 
   const { data: insertedMsg, error } = await supabase.from('whatsapp_messages').insert({
     client_name: clientName || 'Desconhecido',
     client_phone: finalPhone,
     sender_phone: normalizedSender,
-    content: (content || message || '').toString(),
-    message: (message || content || '').toString(),
+    content: msgContent,
+    message: msgContent, // Retrocompatibilidade (coluna message)
     is_read: false,
     is_client: !!clientMatch,
     handoff: handoff || false,

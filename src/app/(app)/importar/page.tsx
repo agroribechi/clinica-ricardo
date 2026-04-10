@@ -126,10 +126,12 @@ export default function ImportarPage() {
     let skipped = 0
     const errors: string[] = []
     
-    // Busca as etapas atuais para normalização de status
-    const { data: stages } = await supabase.from('lead_stages').select('name, order').order('order')
+    // Busca as etapas atuais para normalização de status e associação de IDs
+    const { data: stages } = await supabase.from('lead_stages').select('id, name, order').order('order')
+    const stageMap = new Map((stages || []).map(s => [s.name.toLowerCase().trim(), s.id]))
     let stageNames = stages?.map(s => s.name) || []
     const defaultStage = stageNames[0] || 'Novo Lead'
+    const defaultStageId = stages?.[0]?.id
 
     // Busca contatos existentes para evitar duplicados (por telefone ou e-mail)
     const table = type === 'clientes' ? 'clients' : 'leads'
@@ -156,8 +158,9 @@ export default function ImportarPage() {
         const { error: stageError } = await supabase.from('lead_stages').insert(newStages)
         
         if (!stageError) {
-          const { data: updatedStages } = await supabase.from('lead_stages').select('name').order('order')
+          const { data: updatedStages } = await supabase.from('lead_stages').select('id, name').order('order')
           stageNames = updatedStages?.map(s => s.name) || []
+          updatedStages?.forEach(s => stageMap.set(s.name.toLowerCase().trim(), s.id))
           console.log('Etapas atualizadas no banco:', stageNames)
           alert(`Sucesso: ${newStages.length} novas etapas criadas: ${missing.join(', ')}`)
         } else {
@@ -175,8 +178,13 @@ export default function ImportarPage() {
         ? batch.map(mapCliente).filter(r => r.display_name)
         : batch.map(mapLead).filter(r => r.name).map(r => {
              const rawStatus = r.status
-             const matched = stageNames.find(s => s.toLowerCase().trim() === rawStatus.toLowerCase().trim())
-             return { ...r, status: matched || defaultStage }
+             const matchedName = stageNames.find(s => s.toLowerCase().trim() === rawStatus.toLowerCase().trim())
+             const matchedId = matchedName ? stageMap.get(matchedName.toLowerCase().trim()) : defaultStageId
+             return { 
+               ...r, 
+               status: matchedName || defaultStage,
+               stage_id: matchedId
+             }
            })
 
       // Filtra duplicados

@@ -223,7 +223,8 @@ export default function LeadsPage() {
     const { error } = await supabase.from('lead_notes').insert({
       lead_id: selected.id,
       content: newNote.trim(),
-      author_id: currentUser?.id
+      author_id: currentUser?.id, // Legado
+      owner_id: currentUser?.id    // Novo padrão
     })
     if (!error) {
       setNewNote('')
@@ -236,11 +237,13 @@ export default function LeadsPage() {
     const currentIdx = stages.findIndex(s => s.name === lead.status)
     const targetIdx = direction === 'next' ? currentIdx + 1 : currentIdx - 1
     if (targetIdx < 0 || targetIdx >= stages.length) return
-    const targetStatus = stages[targetIdx].name
-    setMoving(lead.id)
-
     // Assumir controle se não tiver dono
-    const updates: any = { status: targetStatus, updated_at: new Date().toISOString() }
+    const targetStage = stages[targetIdx]
+    const updates: any = { 
+      status: targetStage.name, 
+      stage_id: targetStage.id,
+      updated_at: new Date().toISOString() 
+    }
     if (!lead.owner_id && currentUser?.id) {
       updates.owner_id = currentUser.id
       lead.owner_id = currentUser.id // Update reference for automation

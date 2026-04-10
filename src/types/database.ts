@@ -45,6 +45,7 @@ export type Lead = {
   source?: string | null
   status: string
   owner_id?: string | null
+  stage_id?: string | null
   potential_value?: number
   notes?: string | null
   created_at?: string
@@ -67,6 +68,7 @@ export type LeadNote = {
   lead_id: string
   content: string
   author_id?: string | null
+  owner_id?: string | null
   created_at?: string
 }
 

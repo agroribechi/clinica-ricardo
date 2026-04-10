@@ -814,21 +814,35 @@ function ConversasContent() {
           >
             {[...selected.messages].reverse().map(msg => (
               <div key={msg.id} style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-                {/* Mensagem do Cliente (agora em msg.message) */}
-                {msg.message && (
-                  <div style={{ maxWidth:'72%', alignSelf:'flex-start' }}>
-                    <div style={{ fontSize:'10px', color:'#7a7060', marginBottom:'3px', paddingLeft:'2px' }}>Cliente · {fmt(msg.sent_date)}</div>
-                    <div style={{ padding:'0.625rem 0.875rem', background:'rgba(255,255,255,0.06)', borderRadius:'0 10px 10px 10px', fontSize:'13px', color:'#f0ebe0', lineHeight:1.5 }}>
-                      {msg.message}
+                {/* Bolha de Mensagem Unificada */}
+                {(msg.content || msg.message) && (
+                  <div style={{ 
+                    maxWidth: '72%', 
+                    alignSelf: msg.is_client ? 'flex-start' : 'flex-end',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px'
+                  }}>
+                    <div style={{ 
+                      fontSize: '10px', 
+                      color: msg.is_client ? '#7a7060' : '#7d5213', 
+                      marginBottom: '3px', 
+                      paddingLeft: msg.is_client ? '2px' : '0',
+                      paddingRight: msg.is_client ? '0' : '2px',
+                      textAlign: msg.is_client ? 'left' : 'right' 
+                    }}>
+                      {msg.is_client ? 'Cliente' : 'Bella'} · {fmt(msg.sent_date)}
                     </div>
-                  </div>
-                )}
-                {/* Resposta da Bella (agora em msg.content) */}
-                {msg.content && (
-                  <div style={{ maxWidth:'72%', alignSelf:'flex-end' }}>
-                    <div style={{ fontSize:'10px', color:'#7d5213', marginBottom:'3px', paddingRight:'2px', textAlign:'right' }}>Bella · {fmt(msg.sent_date)}</div>
-                    <div style={{ padding:'0.625rem 0.875rem', background:'rgba(201,147,24,0.08)', border:'1px solid rgba(201,147,24,0.12)', borderRadius:'10px 0 10px 10px', fontSize:'13px', color:'#f0ebe0', lineHeight:1.5 }}>
-                      {msg.content}
+                    <div style={{ 
+                      padding: '0.625rem 0.875rem', 
+                      background: msg.is_client ? 'rgba(255,255,255,0.06)' : 'rgba(201,147,24,0.08)', 
+                      border: msg.is_client ? 'none' : '1px solid rgba(201,147,24,0.12)',
+                      borderRadius: msg.is_client ? '0 10px 10px 10px' : '10px 0 10px 10px', 
+                      fontSize: '13px', 
+                      color: '#f0ebe0', 
+                      lineHeight: 1.5 
+                    }}>
+                      {msg.content || msg.message}
                     </div>
                   </div>
                 )}
