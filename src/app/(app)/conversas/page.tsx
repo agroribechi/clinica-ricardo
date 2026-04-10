@@ -334,14 +334,14 @@ function ConversasContent() {
     let msgQuery = supabase.from('whatsapp_messages').select('*').order('sent_date', { ascending: false }).limit(500)
     
     if (myProfile?.role !== 'admin' && myProfile?.id) {
-      // Agente: vê mensagens delas (como owner_id) OU onde remitente é o agente OU mensagens de clientes para elas
+      // Agente: vê mensagens delas (como owner_id) OU mensagens onde remitente é o agente OU mensagens de clientes para elas
       const myPhone = normalizePhone(myProfile.whatsapp_number)
       const orFilter = myPhone
         ? `owner_id.eq.${myProfile.id},sender_phone.eq.${myPhone}`
         : `owner_id.eq.${myProfile.id}`
       msgQuery = msgQuery.or(orFilter)
     } else if (myProfile?.role === 'admin' && selectedAgentId !== 'all') {
-      // Admin filtrando por agente - similar à lógica do agente
+      // Admin filtrando por agente específica
       const agentProfile = profiles?.find(p => p.id === selectedAgentId)
       if (agentProfile) {
         const agentPhone = normalizePhone(agentProfile.whatsapp_number)
@@ -351,8 +351,8 @@ function ConversasContent() {
         msgQuery = msgQuery.or(orFilter)
       }
     } else {
-      // Admin selecionou "Todos": Mostra absolutamente tudo sem filtro
-      console.log('[Dashboard] Admin em Todos: Sem filtros de mensagem')
+      // Admin em "Todos" — Visibilidade total sem filtros e com limite estendido para recuperar histórico
+      msgQuery = supabase.from('whatsapp_messages').select('*').order('sent_date', { ascending: false }).limit(2000)
     }
 
     const [m, c, l, s] = await Promise.all([
@@ -362,7 +362,12 @@ function ConversasContent() {
       supabase.from('lead_stages').select('*').order('order')
     ])
 
-    setMessages(m.data || [])
+    const rawMessages = m.data || []
+    
+    // Mensagens salvas internamente
+
+    setMessages(rawMessages)
+
     setClients(c.data || [])
     setLeads(l.data || [])
     setStages(s.data || [])
@@ -408,22 +413,20 @@ function ConversasContent() {
           if (currUser?.role !== 'admin') {
             const isOwner = msg.owner_id === currUser?.id
             const isSender = currUser?.whatsapp_number && phonesMatch(msg.sender_phone || '', currUser.whatsapp_number)
+            const isClient = msg.is_client === true || (msg.is_client !== false) // Safe by default
             
-            // Permite mensagens onde o usuário é o dono, o remetente, 
-            // OU se for uma mensagem de cliente (para evitar perda de mensagens não atribuídas)
-            if (!isOwner && !isSender && !msg.is_client) {
-              console.log('[RT] Bloqueado por filtro de Agente (Apenas saídas de outros)')
+            if (!isOwner && !isSender && !isClient) {
+              console.log('[RT] Filtro Agente: Ignorando mensagem externa de outro agente')
               return
             }
           } else if (selAgentId !== 'all') {
             const agent = profiles.find(ap => ap.id === selAgentId)
             const isOwner = msg.owner_id === selAgentId
             const isAgentNumber = agent?.whatsapp_number && phonesMatch(msg.sender_phone || '', agent.whatsapp_number)
+            const isClient = msg.is_client === true || (msg.is_client !== false) // Safe by default
             
-            // Administrador: Permite se for do agente selecionado OU se for mensagem de cliente 
-            // (que pode estar chegando sem dono ainda)
-            if (!isOwner && !isAgentNumber && !msg.is_client) {
-              console.log('[RT] Bloqueado por filtro de seleção de Admin (Apenas saídas de outros)')
+            if (!isOwner && !isAgentNumber && !isClient) {
+              console.log('[RT] Filtro Admin: Ignorando mensagem de outro contexto')
               return
             }
           }
@@ -462,7 +465,7 @@ function ConversasContent() {
         }
       })
 
-      // 4. Broadcast
+      // 4. Broadcast (evento sincronizado com o webhook)
       ch.on('broadcast', { event: 'message_inserted' }, (payload: any) => {
         const msg = (payload && payload.payload) ? payload.payload : payload
         console.log('[RT-VERBOSE] Chegou no Broadcast:', msg.id)
@@ -473,18 +476,13 @@ function ConversasContent() {
         const selAgentId = selectedAgentIdRef.current
         const profiles = allProfilesRef.current
 
-        // Lógica de filtro idêntica para consistência
-        if (currUser?.role === 'admin' && selAgentId === 'all') {
-             // Passa
-        } else if (currUser?.role !== 'admin') {
-          const isOwner = msg.owner_id === currUser?.id
-          const isSender = currUser?.whatsapp_number && phonesMatch(msg.sender_phone || '', currUser.whatsapp_number)
-          if (!isOwner && !isSender) return
-        } else if (selAgentId !== 'all') {
-          const agent = profiles.find(ap => ap.id === selAgentId)
-          const isOwner = msg.owner_id === selAgentId
-          const isAgentNumber = agent?.whatsapp_number && phonesMatch(msg.sender_phone || '', agent.whatsapp_number)
-          if (!isOwner && !isAgentNumber) return
+        // Simplificação: Se é admin, passa. Se não, verifica o owner.
+        if (currUser?.role === 'admin') {
+           // Admin recebe tudo sem filtro
+        } else {
+           const isOwner = msg.owner_id === currUser?.id
+           const isSender = currUser?.whatsapp_number && phonesMatch(msg.sender_phone || '', currUser.whatsapp_number)
+           if (!isOwner && !isSender) return
         }
 
         setMessages(prev => {
@@ -533,13 +531,15 @@ function ConversasContent() {
   const filteredMessages = useMemo(() => messages, [messages])
 
   const conversations = useMemo<Conversation[]>(() => {
-    console.log('[UI-DEBUG] Processando mensagens para a lista:', filteredMessages.length)
     const map = new Map<string, Conversation>()
     
     filteredMessages.forEach(msg => {
-      const phone = normalizePhone(msg.client_phone)
-      if (!phone) return
+      // Fallback robusto: Se client_phone falhar, tenta usar o sender_phone (comum em mensagens de entrada)
+      const phone = normalizePhone(msg.client_phone || msg.sender_phone)
       
+      if (!phone) return
+
+
       const existing = map.get(phone)
       if (!existing) {
         map.set(phone, {
@@ -554,10 +554,25 @@ function ConversasContent() {
           sender_phone: msg.sender_phone,
         })
       } else {
-        // Evita duplicatas ID ou conteúdo/tempo
-        const isDuplicate = existing.messages.some(m => 
-          m.id === msg.id || (m.message === msg.message && Math.abs(new Date(m.sent_date).getTime() - new Date(msg.sent_date).getTime()) < 5000)
-        )
+        // Evita duplicatas ID ou conteúdo/tempo/direção
+        const isDuplicate = existing.messages.some(m => {
+          // Se o ID for igual, é duplicata exata
+          if (m.id === msg.id) return true
+          
+          // Se a direção for diferente, NUNCA é duplicata
+          if (m.is_client !== msg.is_client) return false
+          
+          // Comparação por conteúdo (apenas se não estiverem vazios)
+          const textA = (m.content || m.message || '').trim()
+          const textB = (msg.content || msg.message || '').trim()
+          
+          if (textA !== '' && textA === textB) {
+            const timeDiff = Math.abs(new Date(m.sent_date).getTime() - new Date(msg.sent_date).getTime())
+            return timeDiff < 5000 // Mesma mensagem no mesmo intervalo de 5s
+          }
+          
+          return false
+        })
         
         if (!isDuplicate) {
           // Criamos uma nova versão da conversa para garantir que o React perceba a mudança
@@ -579,6 +594,7 @@ function ConversasContent() {
     )
 
     const enriched = sorted.map(conv => {
+
       const clientMatch = clients.find(c => phonesMatch(c.phone, conv.phone))
       const leadMatch = leads.find(l => phonesMatch(l.phone, conv.phone))
       const stage = leadMatch ? stages.find(s => s.name === leadMatch.status) : null
@@ -604,6 +620,7 @@ function ConversasContent() {
       case 'clientes': return conversations.filter(c => clients.some(cl => phonesMatch(cl.phone, c.phone)))
       case 'leads':    return conversations.filter(c => leads.some(l => phonesMatch(l.phone, c.phone)) && !clients.some(cl => phonesMatch(cl.phone, c.phone)))
       case 'novos':    return conversations.filter(c => !clients.some(cl => phonesMatch(cl.phone, c.phone)) && !leads.some(l => phonesMatch(l.phone, c.phone)))
+      case 'all':      return conversations
       default:         return conversations
     }
   }, [conversations, filter, clients, leads])
@@ -819,45 +836,77 @@ function ConversasContent() {
           {/* Mensagens */}
           <div 
             ref={scrollRef}
-            style={{ flex:1, overflowY:'auto', padding:'1.25rem', display:'flex', flexDirection:'column', gap:'0.875rem' }}
+            style={{ flex:1, overflowY:'auto', padding:'1.25rem', display:'flex', flexDirection:'column', gap:'1.25rem' }}
           >
             {[...selected.messages].reverse().map(msg => (
-              <div key={msg.id} style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
-                {/* Bolha de Mensagem Unificada */}
-                {(msg.content || msg.message) && (
+              <div key={msg.id} style={{ display:'flex', flexDirection:'column', gap:'0.875rem' }}>
+                
+                {/* 1. Bolha do Cliente (msg.message) */}
+                {msg.message && msg.message.trim() !== '' && (
                   <div style={{ 
-                    maxWidth: '72%', 
-                    alignSelf: msg.is_client ? 'flex-start' : 'flex-end',
+                    maxWidth: '75%', 
+                    alignSelf: 'flex-start',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '4px'
                   }}>
                     <div style={{ 
                       fontSize: '10px', 
-                      color: msg.is_client ? '#7a7060' : '#7d5213', 
-                      marginBottom: '3px', 
-                      paddingLeft: msg.is_client ? '2px' : '0',
-                      paddingRight: msg.is_client ? '0' : '2px',
-                      textAlign: msg.is_client ? 'left' : 'right' 
+                      color: '#7a7060', 
+                      marginBottom: '2px', 
+                      paddingLeft: '2px',
                     }}>
-                      {msg.is_client ? 'Cliente' : 'Bella'} · {fmt(msg.sent_date)}
+                      Cliente · {fmt(msg.sent_date)}
                     </div>
                     <div style={{ 
                       padding: '0.625rem 0.875rem', 
-                      background: msg.is_client ? 'rgba(255,255,255,0.06)' : 'rgba(201,147,24,0.08)', 
-                      border: msg.is_client ? 'none' : '1px solid rgba(201,147,24,0.12)',
-                      borderRadius: msg.is_client ? '0 10px 10px 10px' : '10px 0 10px 10px', 
+                      background: 'rgba(255,255,255,0.06)', 
+                      borderRadius: '0 10px 10px 10px', 
                       fontSize: '13px', 
                       color: '#f0ebe0', 
                       lineHeight: 1.5 
                     }}>
-                      {msg.content || msg.message}
+                      {msg.message}
                     </div>
                   </div>
                 )}
+
+                {/* 2. Bolha da IA / Sistema (msg.content) */}
+                {msg.content && msg.content.trim() !== '' && (
+                  <div style={{ 
+                    maxWidth: '75%', 
+                    alignSelf: 'flex-end',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px'
+                  }}>
+                    <div style={{ 
+                      fontSize: '10px', 
+                      color: '#7d5213', 
+                      marginBottom: '2px', 
+                      paddingRight: '2px',
+                      textAlign: 'right' 
+                    }}>
+                      Bella (IA) · {fmt(msg.sent_date)}
+                    </div>
+                    <div style={{ 
+                      padding: '0.625rem 0.875rem', 
+                      background: 'rgba(201,147,24,0.08)', 
+                      border: '1px solid rgba(201,147,24,0.12)',
+                      borderRadius: '10px 0 10px 10px', 
+                      fontSize: '13px', 
+                      color: '#f0ebe0', 
+                      lineHeight: 1.5 
+                    }}>
+                      {msg.content}
+                    </div>
+                  </div>
+                )}
+
               </div>
             ))}
           </div>
+
         </div>
       ) : (
         <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#7a7060', flexDirection:'column', gap:'0.75rem' }}>

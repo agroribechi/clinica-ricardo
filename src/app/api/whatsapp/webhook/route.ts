@@ -38,6 +38,18 @@ export async function POST(request: Request) {
   const normalizedSender = senderPhone ? normalizePhone(senderPhone) : null
   const isNumericId = normalizedPhone.length > 13
 
+  // Normaliza variações do 9º dígito para garantir chave consistente
+  // Ex: 44988509447 (11 dígitos) e 4488509447 (10 dígitos) representam o mesmo número
+  function collapseNinthDigit(phone: string): string {
+    // Se é número brasileiro de 11 dígitos (DDD + 9 + 8 dígitos), remove o 9
+    if (phone.length === 11 && phone[2] === '9') {
+      return phone.slice(0, 2) + phone.slice(3) // remove o 9 → 10 dígitos
+    }
+    return phone
+  }
+
+  const finalPhoneRaw = normalizedPhone
+
   // 1. Encontrar o dono do número (se houver)
   let ownerId: string | null = null
   if (normalizedSender) {
@@ -50,7 +62,7 @@ export async function POST(request: Request) {
   }
 
   // 2. Tenta resolver o telefone real se for um ID numérico longo
-  let finalPhone = normalizedPhone
+  let finalPhone = collapseNinthDigit(normalizedPhone)
   if (isNumericId) {
     const { data: leadMatch } = await supabase
       .from('leads')
@@ -101,11 +113,10 @@ export async function POST(request: Request) {
     }, { onConflict: 'phone' })
   }
 
-  // 3. Determina se é mensagem de cliente/lead ou interna (agente)
-  // Se o ownerId foi encontrado via profiles (whatsapp_number), significa que um AGENTE enviou.
-  // Se não foi encontrado via profiles, a mensagem veio de FORA (cliente/lead).
-  const isMessageFromAgent = !!ownerId && !!normalizedSender && await supabase.from('profiles').select('id').eq('whatsapp_number', normalizedSender).maybeSingle().then(r => !!r.data)
-  const isClientMessage = !isMessageFromAgent
+  // 3. Determina se é mensagem de cliente/lead ou interna (agente/AI)
+  // Lógica infalível: Se o número que enviou (normalizedSender) é o mesmo número 
+  // do contato da conversa (finalPhone), a mensagem vem do cliente.
+  const isClientMessage = normalizedSender && finalPhone && (normalizedSender === finalPhone || normalizedSender.slice(-8) === finalPhone.slice(-8))
 
   const msgContent = (content || message || '').toString()
 
