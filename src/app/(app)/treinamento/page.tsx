@@ -21,13 +21,13 @@ export default function TreinamentoPage() {
   const [saved, setSaved] = useState<string | null>(null)
   const [active, setActive] = useState('apresentacao')
 
-  const load = useCallback(async () => {
+  const refreshData = useCallback(async () => {
     const { data: rows } = await supabase.from('ai_training').select('*')
     if (rows) setData(Object.fromEntries(rows.map(r => [r.campo, r.valor])))
     setLoading(false)
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { refreshData() }, [refreshData])
 
   async function handleSave(campo: string) {
     setSaving(campo)

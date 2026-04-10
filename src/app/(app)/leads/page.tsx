@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate, formatCurrency, formatRelative } from '@/lib/utils'
-import type { Lead, LeadStage } from '@/types/database'
+import type { Lead, LeadStage, LeadNote } from '@/types/database'
 import { Plus, ChevronLeft, ChevronRight, Settings, X, Loader2, Trash2, Search, Zap, Play, Save, MessageSquare, ArrowLeft, ArrowRight } from 'lucide-react'
 import { WhatsAppChatModal } from '@/components/WhatsAppChatModal'
 
@@ -25,7 +25,7 @@ export default function LeadsPage() {
   const [automations, setAutomations] = useState<any[]>([])
   const [showAutomation, setShowAutomation] = useState<LeadStage | null>(null)
   const [showChatPhone, setShowChatPhone] = useState<string | null>(null)
-  const [leadNotes, setLeadNotes] = useState<any[]>([])
+  const [leadNotes, setLeadNotes] = useState<LeadNote[]>([])
   const [newNote, setNewNote] = useState('')
   const [loadingNotes, setLoadingNotes] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)

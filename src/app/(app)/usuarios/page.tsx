@@ -1,8 +1,8 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, Search, Smartphone, Shield, User, RefreshCw } from 'lucide-react'
-import { getUsersWithProfiles, updateProfile } from './actions'
+import { Loader2, Search, Smartphone, Shield, User, RefreshCw, Trash2, Key, Edit2 } from 'lucide-react'
+import { getUsersWithProfiles, updateProfile, deleteUser, resetPassword } from './actions'
 
 type UserProfile = {
   id: string
@@ -21,8 +21,10 @@ export default function UsuariosPage() {
   const [search, setSearch] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [newUserData, setNewUserData] = useState({ email:'', password:'', name:'', role:'agent', whatsapp:'', webhook:'' })
+  const [showResetModal, setShowResetModal] = useState<string | null>(null)
+  const [resetPasswordValue, setResetPasswordValue] = useState('')
 
-  const load = useCallback(async () => {
+  const refreshData = useCallback(async () => {
     setLoading(true)
     try {
       const data = await getUsersWithProfiles()
@@ -35,7 +37,7 @@ export default function UsuariosPage() {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { refreshData() }, [refreshData])
 
   async function handleUpdateProfile(id: string, updates: Partial<UserProfile>) {
     setSaving(id)
@@ -61,9 +63,37 @@ export default function UsuariosPage() {
       
       setShowModal(false)
       setNewUserData({ email:'', password:'', name:'', role:'agent', whatsapp:'', webhook:'' })
-      load()
+      refreshData()
     } catch (err: any) {
       alert(err.message || 'Erro ao criar usuário')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleDeleteUser(id: string, name: string) {
+    if (!confirm(`Tem certeza que deseja excluir permanentemente o usuário ${name}?\nEsta ação não pode ser desfeita.`)) return
+    setLoading(true)
+    try {
+      await deleteUser(id)
+      setProfiles(p => p.filter(u => u.id !== id))
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir usuário')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleResetPassword() {
+    if (!showResetModal || !resetPasswordValue.trim()) return
+    setLoading(true)
+    try {
+      await resetPassword(showResetModal, resetPasswordValue)
+      alert('Senha resetada com sucesso!')
+      setShowResetModal(null)
+      setResetPasswordValue('')
+    } catch (err: any) {
+      alert(err.message || 'Erro ao resetar senha')
     } finally {
       setLoading(false)
     }
@@ -116,11 +146,32 @@ export default function UsuariosPage() {
                 <User size={24} />
               </div>
               <div style={{ flex:1 }}>
-                <div style={{ fontSize:'16px', fontWeight:500, color:'#f5f0e8' }}>{profile.display_name || 'Usuário Sem Nome'}</div>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                  <input 
+                    type="text"
+                    defaultValue={profile.display_name}
+                    onBlur={e => {
+                      if (e.target.value !== profile.display_name) {
+                        handleUpdateProfile(profile.id, { display_name: e.target.value })
+                      }
+                    }}
+                    style={{ background:'transparent', border:'none', color:'#f5f0e8', fontSize:'16px', fontWeight:500, outline:'none', padding:0, width:'100%' }}
+                  />
+                </div>
                 <div style={{ fontSize:'12px', color:'#888' }}>ID: {profile.id.slice(0, 8)}...</div>
               </div>
-              <div style={{ background: profile.role === 'admin' ? 'rgba(201,147,24,0.1)' : 'rgba(255,255,255,0.05)', color: profile.role === 'admin' ? '#c99318' : '#aaa', fontSize:'11px', padding:'2px 8px', borderRadius:'10px', textTransform:'uppercase', fontWeight:600 }}>
-                {profile.role}
+              <div style={{ display:'flex', flexDirection:'column', gap:'4px' }}>
+                <div style={{ alignSelf:'flex-end', background: profile.role === 'admin' ? 'rgba(201,147,24,0.1)' : 'rgba(255,255,255,0.05)', color: profile.role === 'admin' ? '#c99318' : '#aaa', fontSize:'10px', padding:'1px 6px', borderRadius:'10px', textTransform:'uppercase', fontWeight:600 }}>
+                  {profile.role}
+                </div>
+                <div style={{ display:'flex', gap:'8px' }}>
+                  <button onClick={() => setShowResetModal(profile.id)} title="Resetar Senha" style={{ background:'none', border:'none', color:'#7a7060', cursor:'pointer', padding:'2px' }}>
+                    <Key size={14} />
+                  </button>
+                  <button onClick={() => handleDeleteUser(profile.id, profile.display_name)} title="Excluir Usuário" style={{ background:'none', border:'none', color:'#ef444466', cursor:'pointer', padding:'2px' }}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -239,6 +290,28 @@ export default function UsuariosPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      {/* Modal de Reset de Senha */}
+      {showResetModal && (
+        <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:'1rem' }}>
+          <div style={{ background:'#1a1a1a', border:'1px solid rgba(201,147,24,0.3)', borderRadius:'16px', padding:'2rem', width:'100%', maxWidth:'400px', boxShadow:'0 20px 50px rgba(0,0,0,0.5)' }}>
+            <h2 style={{ fontFamily:'Cormorant Garamond, serif', fontSize:'1.6rem', color:'#f5f0e8', marginBottom:'1.5rem' }}>Resetar Senha</h2>
+            <div style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
+              <div>
+                <label style={{ fontSize:'12px', color:'#888', marginBottom:'4px', display:'block' }}>NOVA SENHA</label>
+                <input 
+                  type="password" 
+                  value={resetPasswordValue} 
+                  onChange={e => setResetPasswordValue(e.target.value)} 
+                  style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'8px', padding:'10px', color:'#fff', outline:'none' }} 
+                />
+              </div>
+              <div style={{ display:'flex', gap:'1rem', marginTop:'0.5rem' }}>
+                <button onClick={() => { setShowResetModal(null); setResetPasswordValue(''); }} style={{ flex:1, padding:'10px', background:'rgba(255,255,255,0.05)', border:'none', borderRadius:'8px', color:'#aaa', cursor:'pointer' }}>Cancelar</button>
+                <button onClick={handleResetPassword} style={{ flex:1, padding:'10px', background:'#c99318', border:'none', borderRadius:'8px', color:'#fff', cursor:'pointer' }}>Alterar Senha</button>
+              </div>
+            </div>
           </div>
         </div>
       )}

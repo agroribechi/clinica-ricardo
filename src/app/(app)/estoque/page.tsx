@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Product } from '@/types/database'
-import { Plus, Edit, AlertTriangle, Loader2 } from 'lucide-react'
+import { Plus, Edit, AlertTriangle, Loader2, Trash2 } from 'lucide-react'
 
 const EMPTY = { name:'', category:'', stock:'0', max_stock:'100', low_stock_threshold:'10', unit:'un' }
 
@@ -15,12 +15,12 @@ export default function EstoquePage() {
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
 
-  const load = useCallback(async () => {
+  const refreshData = useCallback(async () => {
     const { data } = await supabase.from('products').select('*').order('name')
     setProducts(data || []); setLoading(false)
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { refreshData() }, [refreshData])
 
   function openEdit(p: Product) {
     setEditing(p)
@@ -35,7 +35,12 @@ export default function EstoquePage() {
     const data = { name:form.name, category:form.category||null, stock:parseInt(form.stock)||0, max_stock:parseInt(form.max_stock)||100, low_stock_threshold:parseInt(form.low_stock_threshold)||10, unit:form.unit||'un' }
     if (editing) await supabase.from('products').update(data).eq('id', editing.id)
     else await supabase.from('products').insert(data as any)
-    setSaving(false); setShowForm(false); setEditing(null); setForm(EMPTY); load()
+    setSaving(false); setShowForm(false); setEditing(null); setForm(EMPTY); refreshData()
+  }
+  async function handleDelete(id: string) {
+    if (!confirm('Excluir este item do estoque?')) return
+    await supabase.from('products').delete().eq('id', id)
+    setProducts(p => p.filter(prod => prod.id !== id))
   }
 
   const stockPct = (p: Product) => Math.min(100, Math.round((p.stock / p.max_stock) * 100))
@@ -114,7 +119,10 @@ export default function EstoquePage() {
                   </td>
                   <td style={{ fontSize:'12px', color:'var(--text-muted)' }}>{p.unit}</td>
                   <td>
-                    <button onClick={() => openEdit(p)} style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:'4px' }}><Edit size={13} /></button>
+                    <div style={{ display:'flex', gap:'4px', justifyContent:'flex-end' }}>
+                      <button onClick={() => openEdit(p)} style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:'4px', borderRadius:'4px' }}><Edit size={13} /></button>
+                      <button onClick={() => handleDelete(p.id)} style={{ background:'none', border:'none', color:'#f87171', cursor:'pointer', padding:'4px', borderRadius:'4px', opacity:0.6 }}><Trash2 size={13} /></button>
+                    </div>
                   </td>
                 </tr>
               ))}

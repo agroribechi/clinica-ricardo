@@ -22,22 +22,47 @@ const nav = [
 ]
 
 export function Sidebar({ clinicName = 'Med Bio' }: { clinicName?: string }) {
+  const [unreadCount, setUnreadCount] = useState(0)
   const [profile, setProfile] = useState<Profile | null>(null)
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
-    async function loadProfile() {
-      // getSession() doesn't acquire the navigator.lock — avoids contention
-      // with other concurrent getUser() calls (e.g. conversas/page.tsx)
+    async function loadProfileAndUnread() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
-        const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
-        setProfile(data)
+        // 1. Perfil
+        const { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
+        setProfile(prof)
+
+        // 2. Contagem inicial de não lidas com filtro de acesso
+        let query = supabase.from('whatsapp_messages').select('*', { count: 'exact', head: true }).eq('is_read', false)
+        if (prof?.role !== 'admin') query = query.eq('owner_id', session.user.id)
+        
+        const { count } = await query
+        setUnreadCount(count || 0)
+
+        // 3. Realtime para atualizações dinâmicas
+        const channel = supabase.channel('sidebar-unread')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_messages' }, async (p) => {
+            const msg = (p.new || p.old) as any
+            
+            // Verifica se a mensagem pertence ao usuário (se for agente)
+            if (prof?.role !== 'admin' && msg.owner_id !== session.user.id) return
+
+            // Recalcula contagem
+            let q = supabase.from('whatsapp_messages').select('*', { count: 'exact', head: true }).eq('is_read', false)
+            if (prof?.role !== 'admin') q = q.eq('owner_id', session.user.id)
+            const { count: newCount } = await q
+            setUnreadCount(newCount || 0)
+          })
+          .subscribe()
+        
+        return () => { supabase.removeChannel(channel) }
       }
     }
-    loadProfile()
+    loadProfileAndUnread()
   }, [supabase])
 
   async function handleLogout() {
@@ -74,10 +99,28 @@ export function Sidebar({ clinicName = 'Med Bio' }: { clinicName?: string }) {
       <nav style={{ flex: 1, padding: '1rem 0.75rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
         {nav.map(({ href, icon: Icon, label }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+          const isConversas = href === '/conversas'
+          
           return (
-            <Link key={href} href={href} className={`nav-link ${active ? 'active' : ''}`}>
-              <Icon size={15} />
-              <span>{label}</span>
+            <Link key={href} href={href} className={`nav-link ${active ? 'active' : ''}`} style={{ justifyContent:'space-between' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                <Icon size={15} />
+                <span>{label}</span>
+              </div>
+              {isConversas && unreadCount > 0 && (
+                <div style={{ 
+                  background: active ? 'var(--gold)' : 'rgba(201,147,24,0.15)', 
+                  color: active ? 'var(--obsidian)' : 'var(--gold-light)', 
+                  fontSize: '10px', 
+                  fontWeight: 700, 
+                  padding: '1px 6px', 
+                  borderRadius: '10px',
+                  minWidth: '18px',
+                  textAlign: 'center'
+                }}>
+                  {unreadCount}
+                </div>
+              )}
             </Link>
           )
         })}

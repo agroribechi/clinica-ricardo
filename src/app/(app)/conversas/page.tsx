@@ -319,7 +319,7 @@ function ConversasContent() {
     }
   }, [])
 
-  const load = useCallback(async () => {
+  const refreshData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     
@@ -371,8 +371,8 @@ function ConversasContent() {
   const allProfilesRef = useRef(allProfiles)
 
   useEffect(() => {
-    load()
-  }, [load])
+    refreshData()
+  }, [refreshData])
 
   useEffect(() => {
     currentUserRef.current = currentUser
@@ -852,7 +852,7 @@ function ConversasContent() {
           stages={stages}
           currentUser={currentUser}
           onClose={() => setShowPanel(false)}
-          onRefresh={load}
+          onRefresh={refreshData}
         />
       )}
 

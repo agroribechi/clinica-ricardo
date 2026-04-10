@@ -16,12 +16,12 @@ export default function ServicosPage() {
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
 
-  const load = useCallback(async () => {
+  const refreshData = useCallback(async () => {
     const { data } = await supabase.from('services').select('*').order('name')
     setServices(data || []); setLoading(false)
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { refreshData() }, [refreshData])
 
   function openNew() { setEditing(null); setForm(EMPTY); setShowForm(true) }
   function openEdit(s: Service) {
@@ -37,7 +37,7 @@ export default function ServicosPage() {
     const data = { name:form.name, description:form.description||null, category:form.category||null, duration_minutes:parseInt(form.duration_minutes)||60, price:parseFloat(form.price)||0 }
     if (editing) await supabase.from('services').update(data).eq('id', editing.id)
     else await supabase.from('services').insert(data as any)
-    setSaving(false); setShowForm(false); load()
+    setSaving(false); setShowForm(false); refreshData()
   }
 
   async function handleDelete(id: string) {

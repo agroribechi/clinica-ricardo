@@ -62,6 +62,14 @@ export type LeadHistory = {
   created_at?: string
 }
 
+export type LeadNote = {
+  id: string
+  lead_id: string
+  content: string
+  author_id?: string | null
+  created_at?: string
+}
+
 export type Service = {
   id: string
   name: string

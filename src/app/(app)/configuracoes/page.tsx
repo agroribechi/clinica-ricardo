@@ -12,13 +12,13 @@ export default function ConfiguracoesPage() {
   const [saved, setSaved] = useState(false)
   const [showKey, setShowKey] = useState(false)
 
-  const load = useCallback(async () => {
+  const refreshData = useCallback(async () => {
     const { data } = await supabase.from('settings').select('*').eq('id', 'general').single()
     if (data) setForm(data)
     setLoading(false)
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { refreshData() }, [refreshData])
 
   function set(field: string, value: string) { setForm(p => ({ ...p, [field]: value })) }
 
